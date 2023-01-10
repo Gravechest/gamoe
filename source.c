@@ -19,9 +19,16 @@ HWND window;
 HDC dc;
 MSG Msg;
 u4 VBO;
-u4 texture;
+u4 texture,map_texture;
 
-QUAD quad = {.tc1={0.0f,0.0f},.tc2={0.0f,1.0f},.tc3={1.0f,0.0f},.tc4={1.0f,1.0f},.tc5={0.0f,1.0f},.tc6={1.0f,0.0f}};
+QUAD quad = {
+	.tc1={0.0f,0.0f},
+	.tc2={0.0f,1.0f},
+	.tc3={1.0f,0.0f},
+	.tc4={1.0f,1.0f},
+	.tc5={0.0f,1.0f},
+	.tc6={1.0f,0.0f}
+};
 
 QUAD map_quad = {
 	.p1={-1.0f,-1.0f},.tc1={0.0f,0.0f},
@@ -42,6 +49,7 @@ BULLETHUB bullet;
 ENEMYHUB  enemy;
 VEC2 camera = {RES,RES};
 IVEC2 chunkPointer;
+OPENGLQUEUE gl_queue;
 
 u4 spriteShader,mapShader,enemyShader;
 
@@ -164,6 +172,8 @@ i4 proc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam){
 		switch(wParam){
 		case VK_L:
 			map[(u4)player.pos.y*MAP+(u4)player.pos.x] = 2;
+			gl_queue.message[gl_queue.cnt].id = 0;
+			gl_queue.message[gl_queue.cnt++].pos = (IVEC2){player.pos.x,player.pos.y};
 			break;
 		}
 		break;
@@ -182,16 +192,16 @@ i4 proc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam){
 
 void illuminateMap(VEC3 color,VEC2 pos,u4 ammount){
 	VEC2subVEC2(&pos,camera);
-	if(pos.x < 0.0f || pos.y < 0.0f || pos.x > RES || pos.y > RES){
+	if(pos.x < 0.0f || pos.y < 0.0f || pos.x > RES-1.0f || pos.y > RES-1.0f){
 		for(u4 i = 0;i < ammount;i++){
-			VEC2 direction = VEC2normalizeR((VEC2){rnd()+rnd()-3.0f,rnd()+rnd()-3.0f});
+			VEC2 direction = VEC2normalizeR((VEC2){cosf(i),sinf(i)});
 			f4 dst = iSquare(pos,direction,(VEC2){RES,RES});
 			if(dst != -1.0f){
 				VEC2 ray_pos = VEC2addVEC2R(pos,VEC2mulR(direction,dst));
 				RAY2D ray = ray2dCreate(ray_pos,direction);
 				ray2dIterate(&ray);
 				while(ray.roundPos.x > 0.0f && ray.roundPos.x < RES && ray.roundPos.y > 0.0f && ray.roundPos.y < RES){
-					if(map[(ray.roundPos.y+(u4)camera.y)*MAP+(ray.roundPos.x+(u4)camera.x)]){
+					if(map[(ray.roundPos.y+(u4)camera.y)*MAP+(ray.roundPos.x+(u4)camera.x)]==1){
 						vramf[ray.roundPos.y*RES+ray.roundPos.x].r+=color.r;
 						vramf[ray.roundPos.y*RES+ray.roundPos.x].g+=color.g;
 						vramf[ray.roundPos.y*RES+ray.roundPos.x].b+=color.b;
@@ -204,14 +214,17 @@ void illuminateMap(VEC3 color,VEC2 pos,u4 ammount){
 	}
 	else{
 		for(u4 i = 0;i < ammount;i++){
-			RAY2D ray = ray2dCreate(pos,(VEC2){rnd()+rnd()-3.0f,rnd()+rnd()-3.0f});
+			RAY2D ray = ray2dCreate(pos,(VEC2){cosf(i),sinf(i)});
 			while(ray.roundPos.x > 0.0f && ray.roundPos.x < RES && ray.roundPos.y > 0.0f && ray.roundPos.y < RES){
-				if(map[(ray.roundPos.y+(u4)camera.y)*MAP+(ray.roundPos.x+(u4)camera.x)]){
-					vramf[ray.roundPos.y*RES+ray.roundPos.x].r+=color.r;
-					vramf[ray.roundPos.y*RES+ray.roundPos.x].g+=color.g;
-					vramf[ray.roundPos.y*RES+ray.roundPos.x].b+=color.b;
+				if(map[(ray.roundPos.y+(u4)camera.y)*MAP+(ray.roundPos.x+(u4)camera.x)]==1){
+					vramf[ray.roundPos.y*RES+ray.roundPos.x].r+=color.r*4.0f;
+					vramf[ray.roundPos.y*RES+ray.roundPos.x].g+=color.g*4.0f;
+					vramf[ray.roundPos.y*RES+ray.roundPos.x].b+=color.b*4.0f;
 					break;
 				}
+				vramf[ray.roundPos.y*RES+ray.roundPos.x].r+=color.r;
+				vramf[ray.roundPos.y*RES+ray.roundPos.x].g+=color.g;
+				vramf[ray.roundPos.y*RES+ray.roundPos.x].b+=color.b;
 				ray2dIterate(&ray);
 			}
 		}	
@@ -379,6 +392,7 @@ void drawEnemy(VEC2 pos,VEC2 size){
 void drawMap(){
 	glUseProgram(mapShader);
 	glUniform2f(glGetUniformLocation(mapShader,"offset"),fract(camera.x)/RES,fract(camera.y)/RES);
+	glUniform2f(glGetUniformLocation(mapShader,"camera"),camera.x/MAP,camera.y/MAP);
 	glTexImage2D(GL_TEXTURE_2D,0,GL_RGB,RES,RES,0,GL_RGB,GL_UNSIGNED_BYTE,vram);
 	glGenerateMipmap(GL_TEXTURE_2D);
 	glBufferData(GL_ARRAY_BUFFER,24 * sizeof(float),&map_quad,GL_DYNAMIC_DRAW);
@@ -421,22 +435,35 @@ void render(){
 	glBindBuffer              = wglGetProcAddress("glBindBuffer");
 	glGenerateMipmap          = wglGetProcAddress("glGenerateMipmap");
 	glGetUniformLocation      = wglGetProcAddress("glGetUniformLocation");
+	glActiveTexture           = wglGetProcAddress("glActiveTexture");
+	glUniform1i               = wglGetProcAddress("glUniform1i");
 	glUniform2f               = wglGetProcAddress("glUniform2f");
 	wglSwapIntervalEXT        = wglGetProcAddress("wglSwapIntervalEXT");
 
 	wglSwapIntervalEXT(1);
 
 	spriteShader = loadShader("shader/sprite.frag","shader/vertex.vert");
-	mapShader    = loadShader("shader/map.frag","shader/vertex.vert");
-	enemyShader  = loadShader("shader/enemy.frag","shader/vertex.vert");
-	glUseProgram(spriteShader);
+	mapShader    = loadShader("shader/map.frag"   ,"shader/vertex.vert");
+	enemyShader  = loadShader("shader/enemy.frag" ,"shader/vertex.vert");
 
 	glCreateBuffers(1,&VBO);
 	glBindBuffer(GL_ARRAY_BUFFER,VBO);
 	
 	glGenTextures(1,&texture);
+	glGenTextures(1,&map_texture);
+	glBindTexture(GL_TEXTURE_2D,map_texture);
 	glBindTexture(GL_TEXTURE_2D,texture);
+
 	glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_NEAREST);
+	glUseProgram(mapShader);
+	glActiveTexture(GL_TEXTURE1);
+	glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_NEAREST);
+	glTexImage2D(GL_TEXTURE_2D,0,GL_R8,MAP,MAP,0,GL_RED,GL_UNSIGNED_BYTE,map);
+	glGenerateMipmap(GL_TEXTURE_2D);
+	glUniform1i(glGetUniformLocation(mapShader,"map"),1);
+	glActiveTexture(GL_TEXTURE0);
+
+	glUseProgram(spriteShader);
 
 	glEnableVertexAttribArray(0);
 	glVertexAttribPointer(0,2,GL_FLOAT,0,4 * sizeof(float),(void*)0);
@@ -447,6 +474,7 @@ void render(){
 		if(player.pos.x - RES/2 - 30.0f > camera.x){
 			camera.x += player.pos.x - RES/2 - 30.0f - camera.x;
 			if(camera.x > RES*2){
+				printf("yeet\n");
 				camera.x -= RES;
 				player.pos.x -= RES;
 				for(u4 x = 0;x < MAP;x++){
@@ -487,14 +515,25 @@ void render(){
 		if(player.pos.y - RES/2 + 30.0f < camera.y){
 			camera.y += player.pos.y - RES/2 + 30.0f - camera.y;
 		}
-		for(u4 i = 0;i < MAP*MAP;i++){
-			if(map[i]==2){
-				illuminateMap((VEC3){0.1f,0.1f,1.0f},(VEC2){(f4)(i/MAP)+0.5f,(f4)(i%MAP)+0.5f},1024*4);
+		while(gl_queue.cnt){
+			switch(gl_queue.message[--gl_queue.cnt].id){
+			case 0:{
+				glActiveTexture(GL_TEXTURE1);
+				IVEC2 p = gl_queue.message[gl_queue.cnt].pos;
+				glTexSubImage2D(GL_TEXTURE_2D,0,p.x,p.y,1,1,GL_RGB,GL_UNSIGNED_BYTE,map+p.y*MAP+p.x);
+				glActiveTexture(GL_TEXTURE0);
+				break;
+			}
 			}
 		}
-		illuminateMap((VEC3){1.0f,0.1f,0.1f},player.pos,1024);
+		for(u4 i = 0;i < MAP*MAP;i++){
+			if(map[i]==2){
+				illuminateMap((VEC3){0.1f,0.1f,1.0f},(VEC2){(f4)(i%MAP)+0.5f,(f4)(i/MAP)+0.5f},1024*4);
+			}
+		}
+		illuminateMap((VEC3){0.2f,0.02f,0.02f},player.pos,1024);
 		for(u4 i = 0;i < bullet.cnt;i++){
-			illuminateMap((VEC3){0.1f,1.0f,0.1f},bullet.state[i].pos,1024);
+			illuminateMap((VEC3){0.1f,0.3f,0.1f},bullet.state[i].pos,1024);
 		}
 		for(u4 i = 0;i < RES*RES;i++){
 			vram[i].r = t_minf(vramf[i].r,255.0f);
@@ -521,6 +560,7 @@ void main(){
 	vram   = HeapAlloc(GetProcessHeap(),HEAP_ZERO_MEMORY,sizeof(RGB)*RES*RES);
 	vramf  = HeapAlloc(GetProcessHeap(),HEAP_ZERO_MEMORY,sizeof(VEC3)*RES*RES);
 	map    = HeapAlloc(GetProcessHeap(),HEAP_ZERO_MEMORY,MAP*MAP);
+	gl_queue.message = HeapAlloc(GetProcessHeap(),0,sizeof(OPENGLMESSAGE)*255);
 	bullet.state   = HeapAlloc(GetProcessHeap(),0,sizeof(BULLET)*255);
 	bullet.texture = HeapAlloc(GetProcessHeap(),HEAP_ZERO_MEMORY,sizeof(RGB)*16*16);
 	player.texture = HeapAlloc(GetProcessHeap(),HEAP_ZERO_MEMORY,sizeof(RGB)*16*16);

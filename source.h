@@ -13,6 +13,16 @@
 #define GL_ARRAY_BUFFER 0x8892
 #define GL_DYNAMIC_DRAW 0x88E8
 
+#define GL_TEXTURE0 0x84C0
+#define GL_TEXTURE1 0x84C1
+#define GL_TEXTURE2 0x84C2
+#define GL_TEXTURE3 0x84C3
+#define GL_TEXTURE4 0x84C4
+#define GL_TEXTURE5 0x84C5
+#define GL_TEXTURE6 0x84C6
+
+#define GL_R8 0x8229
+
 #define PR_FRICTION 0.9f
 
 #define VK_W 0x57
@@ -49,6 +59,8 @@ void (*glCreateBuffers)(u4 n,u4 *buffers);
 void (*glBindBuffer)(u4 target,u4 buffer);
 void (*glGetShaderInfoLog)(u4 shader,u4 maxlength,u4 *length,u1 *infolog);
 void (*glGenerateMipmap)(u4 target);
+void (*glActiveTexture)(u4 texture);
+void (*glUniform1i)(i4 loc,i4 v1);
 void (*glUniform2f)(i4 loc,f4 v1,f4 v2);
 
 i4 proc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
@@ -132,3 +144,13 @@ typedef struct{
 
 	i4 hitSide;
 }RAY2D;
+
+typedef struct{
+	u4 id;
+	IVEC2 pos;
+}OPENGLMESSAGE;
+
+typedef struct{
+	u4 cnt;
+	OPENGLMESSAGE* message;
+}OPENGLQUEUE;
