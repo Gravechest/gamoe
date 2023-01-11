@@ -7,6 +7,9 @@
 #pragma comment(lib,"opengl32.lib")
 
 #define PLAYER_SIZE 1.25f
+#define CAM_AREA 0.0f
+
+#define PI 3.141f
 
 #define GL_FRAGMENT_SHADER 0x8B30
 #define GL_VERTEX_SHADER 0x8B31

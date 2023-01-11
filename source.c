@@ -191,30 +191,41 @@ i4 proc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam){
 }
 
 void illuminateMap(VEC3 color,VEC2 pos,u4 ammount){
-	VEC2subVEC2(&pos,camera);
-	if(pos.x < 0.0f || pos.y < 0.0f || pos.x > RES-1.0f || pos.y > RES-1.0f){
-		for(u4 i = 0;i < ammount;i++){
-			VEC2 direction = VEC2normalizeR((VEC2){cosf(i),sinf(i)});
+	VEC2subVEC2(&pos,(VEC2){(u4)camera.x,(u4)camera.y});
+	if(pos.x < 0.0f || pos.y < 0.0f || pos.x > RES || pos.y > RES){
+		f4 offset = rnd();
+		for(f4 i = offset;i < 1.0f+offset;i+=1.0f/ammount){
+			VEC2 direction = VEC2normalizeR((VEC2){cosf(i*PI*2.0f),sinf(i*PI*2.0f)});
 			f4 dst = iSquare(pos,direction,(VEC2){RES,RES});
+			dst = 1.0f;
 			if(dst != -1.0f){
-				VEC2 ray_pos = VEC2addVEC2R(pos,VEC2mulR(direction,dst));
-				RAY2D ray = ray2dCreate(ray_pos,direction);
-				ray2dIterate(&ray);
-				while(ray.roundPos.x > 0.0f && ray.roundPos.x < RES && ray.roundPos.y > 0.0f && ray.roundPos.y < RES){
-					if(map[(ray.roundPos.y+(u4)camera.y)*MAP+(ray.roundPos.x+(u4)camera.x)]==1){
-						vramf[ray.roundPos.y*RES+ray.roundPos.x].r+=color.r;
-						vramf[ray.roundPos.y*RES+ray.roundPos.x].g+=color.g;
-						vramf[ray.roundPos.y*RES+ray.roundPos.x].b+=color.b;
+				RAY2D ray = ray2dCreate(pos,direction);
+				while((ray.roundPos.x < 0 || ray.roundPos.x >= RES || ray.roundPos.y < 0.0f || ray.roundPos.y >= RES)){
+					IVEC2 block = {(ray.roundPos.x+(u4)camera.x),(ray.roundPos.y+(u4)camera.y)};
+					if(map[block.y*MAP+block.x]==1){
 						break;
 					}
+					ray2dIterate(&ray);
+				}
+				while(ray.roundPos.x >= 0 && ray.roundPos.x < RES && ray.roundPos.y >= 0 && ray.roundPos.y < RES){
+					if(map[(ray.roundPos.y+(u4)camera.y)*MAP+(ray.roundPos.x+(u4)camera.x)]==1){
+						vramf[ray.roundPos.y*RES+ray.roundPos.x].r+=color.r*4.0f;
+						vramf[ray.roundPos.y*RES+ray.roundPos.x].g+=color.g*4.0f;
+						vramf[ray.roundPos.y*RES+ray.roundPos.x].b+=color.b*4.0f;
+						break;
+					}
+					vramf[ray.roundPos.y*RES+ray.roundPos.x].r+=color.r;
+					vramf[ray.roundPos.y*RES+ray.roundPos.x].g+=color.g;
+					vramf[ray.roundPos.y*RES+ray.roundPos.x].b+=color.b;
 					ray2dIterate(&ray);
 				}
 			}
 		}
 	}
 	else{
-		for(u4 i = 0;i < ammount;i++){
-			RAY2D ray = ray2dCreate(pos,(VEC2){cosf(i),sinf(i)});
+		f4 offset = rnd();
+		for(f4 i = offset;i < 1.0f+offset;i+=1.0f/ammount){
+			RAY2D ray = ray2dCreate(pos,(VEC2){cosf(i*PI*2.0f),sinf(i*PI*2.0f)});
 			while(ray.roundPos.x > 0.0f && ray.roundPos.x < RES && ray.roundPos.y > 0.0f && ray.roundPos.y < RES){
 				if(map[(ray.roundPos.y+(u4)camera.y)*MAP+(ray.roundPos.x+(u4)camera.x)]==1){
 					vramf[ray.roundPos.y*RES+ray.roundPos.x].r+=color.r*4.0f;
@@ -324,18 +335,18 @@ void physics(){
 		VEC2addVEC2(&player.pos,player.vel);
 		collision(&player.pos,player.vel,1.25f);
 		VEC2mul(&player.vel,PR_FRICTION);
-		/*
 		if(rnd()<1.02f && enemy.cnt < 8){
-			enemy.state[enemy.cnt++].pos = (VEC2){(rnd()-1.0f)*RES,(rnd()-1.0f)*RES};
+			enemy.state[enemy.cnt++].pos = (VEC2){rnd()*RES,rnd()*RES};
 		}
-		*/
 		for(u4 i = 0;i < enemy.cnt;i++){
-			if(enemy.state[i].pos.x < 1.0f || enemy.state[i].pos.x > RES-1.0f ||
-			enemy.state[i].pos.y < 1.0f || enemy.state[i].pos.y > RES-1.0f){
+			if(enemy.state[i].pos.x < 1.0f || enemy.state[i].pos.x > RES*3-1.0f ||
+			enemy.state[i].pos.y < 1.0f || enemy.state[i].pos.y > RES*3-1.0f){
 				for(u4 j = i;j < enemy.cnt;j++){
 					enemy.state[j] = enemy.state[j+1];
 				}
 				enemy.cnt--;
+				i--;
+				continue;
 			}
 			u4 iterations = (u4)fabsf(player.pos.x-enemy.state[i].pos.x)+(u4)fabsf(player.pos.y-enemy.state[i].pos.y);
 			VEC2 toPlayer = VEC2normalizeR(VEC2subVEC2R(player.pos,enemy.state[i].pos));
@@ -471,12 +482,17 @@ void render(){
 	glVertexAttribPointer(1,2,GL_FLOAT,0,4 * sizeof(float),(void*)(2 * sizeof(float)));
 
 	for(;;){
-		if(player.pos.x - RES/2 - 30.0f > camera.x){
-			camera.x += player.pos.x - RES/2 - 30.0f - camera.x;
+		if(player.pos.x - RES/2 - CAM_AREA > camera.x){
+			camera.x += player.pos.x - RES/2 - CAM_AREA - camera.x;
 			if(camera.x > RES*2){
-				printf("yeet\n");
 				camera.x -= RES;
 				player.pos.x -= RES;
+				for(u4 i = 0;i < enemy.cnt;i++){
+					enemy.state[i].pos.x -= RES;
+				}
+				for(u4 i = 0;i < bullet.cnt;i++){
+					bullet.state[i].pos.x -= RES;
+				}
 				for(u4 x = 0;x < MAP;x++){
 					for(u4 y = 0;y < RES*2;y++){
 						map[x*MAP+y] = map[x*MAP+y+RES];
@@ -487,33 +503,62 @@ void render(){
 				}
 			}
 		}
-		if(player.pos.y - RES/2 - 30.0f > camera.y){
-			camera.y += player.pos.y - RES/2 - 30.0f - camera.y;
+		if(player.pos.y - RES/2 - CAM_AREA > camera.y){
+			camera.y += player.pos.y - RES/2 - CAM_AREA - camera.y;
 			if(camera.y > RES*2){
 				camera.y -= RES;
 				player.pos.y -= RES;
 				memcpy(map,map+MAP*RES,MAP*RES);
 				memcpy(map+MAP*RES,map+MAP*RES*2,MAP*RES);
+				for(u4 i = 0;i < enemy.cnt;i++){
+					enemy.state[i].pos.y -= RES;
+				}
+				for(u4 i = 0;i < bullet.cnt;i++){
+					bullet.state[i].pos.y -= RES;
+				}
 				for(u4 x = 0;x <= RES*2;x+=RES){
 					genMap((IVEC2){0,0},x+MAP*RES*2,7,-1.0f);
 				}
 			}
 		}
-		if(player.pos.x - RES/2 + 30.0f < camera.x){
-			camera.x += player.pos.x - RES/2 + 30.0f - camera.x;
+		if(player.pos.x - RES/2 + CAM_AREA < camera.x){
+			camera.x += player.pos.x - RES/2 + CAM_AREA - camera.x;
 			if(camera.x < 0.0f){
 				camera.x += RES;
 				player.pos.x += RES;
-				for(u4 i = MAP*RES*2;i > 0;i--){
-					map[i+RES] = map[i];
+				for(u4 i = 0;i < enemy.cnt;i++){
+					enemy.state[i].pos.x += RES;
+				}
+				for(u4 i = 0;i < bullet.cnt;i++){
+					bullet.state[i].pos.x += RES;
+				}
+				for(u4 x = 0;x < MAP;x++){
+					for(u4 y = 0;y < RES*2;y++){
+						map[x*MAP+y] = map[x*MAP+y+RES];
+					}
 				}
 				for(u4 y = 0;y <= MAP*RES*2;y+=MAP*RES){
-					genMap((IVEC2){0,0},y+RES*2,7,-1.0f);
+					genMap((IVEC2){0,0},y,7,-1.0f);
 				}
 			}
 		}
-		if(player.pos.y - RES/2 + 30.0f < camera.y){
-			camera.y += player.pos.y - RES/2 + 30.0f - camera.y;
+		if(player.pos.y - RES/2 + CAM_AREA < camera.y){
+			camera.y += player.pos.y - RES/2 + CAM_AREA - camera.y;
+			if(camera.y < 0.0f){
+				camera.y += RES;
+				player.pos.y += RES;
+				for(u4 i = 0;i < enemy.cnt;i++){
+					enemy.state[i].pos.y += RES;
+				}
+				for(u4 i = 0;i < bullet.cnt;i++){
+					bullet.state[i].pos.y += RES;
+				}
+				memcpy(map+MAP*RES*2,map+MAP*RES,MAP*RES);
+				memcpy(map+MAP*RES,map,MAP*RES);
+				for(u4 x = 0;x <= RES*2;x+=RES){
+					genMap((IVEC2){0,0},x,7,-1.0f);
+				}
+			}
 		}
 		while(gl_queue.cnt){
 			switch(gl_queue.message[--gl_queue.cnt].id){
@@ -528,7 +573,7 @@ void render(){
 		}
 		for(u4 i = 0;i < MAP*MAP;i++){
 			if(map[i]==2){
-				illuminateMap((VEC3){0.1f,0.1f,1.0f},(VEC2){(f4)(i%MAP)+0.5f,(f4)(i/MAP)+0.5f},1024*4);
+				illuminateMap((VEC3){0.02f,0.02f,0.2f},(VEC2){(f4)(i%MAP)+0.5f,(f4)(i/MAP)+0.5f},1024*4);
 			}
 		}
 		illuminateMap((VEC3){0.2f,0.02f,0.02f},player.pos,1024);
