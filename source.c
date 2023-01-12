@@ -31,12 +31,12 @@ QUAD quad = {
 };
 
 QUAD map_quad = {
-	.p1={-1.0f,-1.0f},.tc1={0.0f,0.0f},
-	.p2={-1.0f, 1.0f},.tc2={0.0f,1.0f},
-	.p3={ 1.0f,-1.0f},.tc3={1.0f,0.0f},
-	.p4={ 1.0f, 1.0f},.tc4={1.0f,1.0f},
-	.p5={-1.0f, 1.0f},.tc5={0.0f,1.0f},
-	.p6={ 1.0f,-1.0f},.tc6={1.0f,0.0f}
+	.p1={-1.0f  ,-1.0f  },.tc1={0.0f,0.0f},
+	.p2={-1.0f  , 1.0f  },.tc2={0.0f,1.0f},
+	.p3={ 0.125f,-1.0f  },.tc3={1.0f,0.0f},
+	.p4={ 0.125f, 1.0f  },.tc4={1.0f,1.0f},
+	.p5={-1.0f  , 1.0f  },.tc5={0.0f,1.0f},
+	.p6={ 0.125f,-1.0f  },.tc6={1.0f,0.0f}
 };
 
 VEC3* vramf;
@@ -52,7 +52,7 @@ VEC2 camera = {RES,RES};
 IVEC2 chunkPointer;
 OPENGLQUEUE gl_queue;
 
-u4 spriteShader,mapShader,enemyShader;
+u4 spriteShader,mapShader,enemyShader,colorShader;
 
 RAY2D ray2dCreate(VEC2 pos,VEC2 dir){
 	RAY2D ray;
@@ -140,7 +140,7 @@ f4 t_minf(f4 p,f4 p2){
 }
 
 VEC2 mapCoordsToRenderCoords(VEC2 p){
-	return (VEC2){(p.x-camera.x)/(RES/2.0f)-1.0f,(p.y-camera.y)/(RES/2.0f)-1.0f};
+	return (VEC2){((p.x-camera.x)/(RES/2.0f/RD_CMP)-1.0f),(p.y-camera.y)/(RES/2.0f)-1.0f};
 }
 
 void genMap(IVEC2 crd,u4 offset,u4 depth,f4 value){
@@ -457,6 +457,18 @@ void physics(){
 	}
 }
 
+void drawRect(COLORRECT rect){
+	quad.p1 = (VEC2){rect.pos.x-rect.size.x,rect.pos.y-rect.size.y};
+	quad.p2 = (VEC2){rect.pos.x-rect.size.x,rect.pos.y+rect.size.y};
+	quad.p3 = (VEC2){rect.pos.x+rect.size.x,rect.pos.y-rect.size.y};
+	quad.p4 = (VEC2){rect.pos.x+rect.size.x,rect.pos.y+rect.size.y};
+	quad.p5 = (VEC2){rect.pos.x-rect.size.x,rect.pos.y+rect.size.y};
+	quad.p6 = (VEC2){rect.pos.x+rect.size.x,rect.pos.y-rect.size.y};
+	glUniform3f(glGetUniformLocation(colorShader,"color"),rect.color.r,rect.color.g,rect.color.b);
+	glBufferData(GL_ARRAY_BUFFER,24 * sizeof(float),&quad,GL_DYNAMIC_DRAW);
+	glDrawArrays(GL_TRIANGLES,0,24);
+}
+
 void drawSprite(VEC2 pos,VEC2 size,IVEC2 textureSize,RGB* texture){
 	quad.p1 = (VEC2){pos.x-size.x,pos.y-size.y};
 	quad.p2 = (VEC2){pos.x-size.x,pos.y+size.y};
@@ -530,6 +542,7 @@ void render(){
 	glActiveTexture           = wglGetProcAddress("glActiveTexture");
 	glUniform1i               = wglGetProcAddress("glUniform1i");
 	glUniform2f               = wglGetProcAddress("glUniform2f");
+	glUniform3f               = wglGetProcAddress("glUniform3f");
 	wglSwapIntervalEXT        = wglGetProcAddress("wglSwapIntervalEXT");
 
 	wglSwapIntervalEXT(1);
@@ -537,6 +550,7 @@ void render(){
 	spriteShader = loadShader("shader/sprite.frag","shader/vertex.vert");
 	mapShader    = loadShader("shader/map.frag"   ,"shader/vertex.vert");
 	enemyShader  = loadShader("shader/enemy.frag" ,"shader/vertex.vert");
+	colorShader  = loadShader("shader/color.frag" ,"shader/vertex.vert");
 
 	glCreateBuffers(1,&VBO);
 	glBindBuffer(GL_ARRAY_BUFFER,VBO);
@@ -555,12 +569,15 @@ void render(){
 	glUniform1i(glGetUniformLocation(mapShader,"map"),1);
 	glActiveTexture(GL_TEXTURE0);
 
-	glUseProgram(spriteShader);
-
 	glEnableVertexAttribArray(0);
 	glVertexAttribPointer(0,2,GL_FLOAT,0,4 * sizeof(float),(void*)0);
 	glEnableVertexAttribArray(1);
 	glVertexAttribPointer(1,2,GL_FLOAT,0,4 * sizeof(float),(void*)(2 * sizeof(float)));
+
+	glUseProgram(colorShader);
+	drawRect((COLORRECT){0.0f,0.0f},RD_SQUARE(2.0f),(VEC3){1.0f,0.0f,0.0f});
+
+	glUseProgram(spriteShader);
 
 	for(;;){
 		if(player.pos.x - RES/2 - CAM_AREA > camera.x){
@@ -668,6 +685,9 @@ void render(){
 				glActiveTexture(GL_TEXTURE0);
 				break;
 			}
+			case 1:
+				drawRect(gl_queue.message[gl_queue.cnt].rect);
+				break;
 			}
 		}
 		for(u4 i = 0;i < MAP*MAP;i++){
@@ -686,9 +706,9 @@ void render(){
 		}
 		drawMap();
 		glUseProgram(spriteShader);
-		drawSprite(mapCoordsToRenderCoords(player.pos),(VEC2){0.018f,0.018f},(IVEC2){16,16},player.texture);
+		drawSprite(mapCoordsToRenderCoords(player.pos),RD_SQUARE(0.018f),(IVEC2){16,16},player.texture);
 		for(u4 i = 0;i < bullet.cnt;i++){
-			drawSprite(mapCoordsToRenderCoords(bullet.state[i].pos),(VEC2){0.01f,0.01f},(IVEC2){16,16},bullet.texture);
+			drawSprite(mapCoordsToRenderCoords(bullet.state[i].pos),(VEC2){0.01f*RD_CMP,0.01f},(IVEC2){16,16},bullet.texture);
 		}
 		glUseProgram(enemyShader);
 		for(u4 i = 0;i < enemy.cnt;i++){

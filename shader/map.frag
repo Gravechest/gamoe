@@ -14,10 +14,8 @@ void main(){
 	switch(int(texture(map,TextCoords/3.0+camera).r*255.0)){
 	case 0:
 	case 1:
-		FragColor += texture(t_texture,TextCoords+offset);
-		break;
 	case 2:
-		FragColor.rgb = vec3(1.0);
+		FragColor += texture(t_texture,TextCoords+offset);
 		break;
 	}
 }

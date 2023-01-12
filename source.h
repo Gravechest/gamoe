@@ -11,6 +11,10 @@
 
 #define PI 3.141f
 
+#define RD_CMP 0.562500f
+
+#define RD_SQUARE(X) (VEC2){X*RD_CMP,X}
+
 #define GL_FRAGMENT_SHADER 0x8B30
 #define GL_VERTEX_SHADER 0x8B31
 #define GL_ARRAY_BUFFER 0x8892
@@ -34,11 +38,11 @@
 #define VK_D 0x44
 #define VK_L 0x4C
 
-#define WNDOFFX 300
-#define WNDOFFY 300
+#define WNDOFFX 0
+#define WNDOFFY 0
 
-#define WNDX 512
-#define WNDY 512
+#define WNDX 1080
+#define WNDY 1920
 
 #define RES 128
 
@@ -65,6 +69,7 @@ void (*glGenerateMipmap)(u4 target);
 void (*glActiveTexture)(u4 texture);
 void (*glUniform1i)(i4 loc,i4 v1);
 void (*glUniform2f)(i4 loc,f4 v1,f4 v2);
+void (*glUniform3f)(i4 loc,f4 v1,f4 v2,f4 v3);
 
 i4 proc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
 
@@ -149,8 +154,17 @@ typedef struct{
 }RAY2D;
 
 typedef struct{
+	VEC2 pos;
+	VEC2 size;
+	VEC3 color;
+}COLORRECT;
+
+typedef struct{
 	u4 id;
-	IVEC2 pos;
+	union{
+		IVEC2 pos;
+		COLORRECT rect;
+	};
 }OPENGLMESSAGE;
 
 typedef struct{
