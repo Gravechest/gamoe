@@ -35,10 +35,10 @@
 #define VK_L 0x4C
 
 #define WNDOFFX 300
-#define WNDOFFY 0
+#define WNDOFFY 300
 
-#define WNDX 1080
-#define WNDY 1080
+#define WNDX 512
+#define WNDY 512
 
 #define RES 128
 
@@ -157,3 +157,16 @@ typedef struct{
 	u4 cnt;
 	OPENGLMESSAGE* message;
 }OPENGLQUEUE;
+
+typedef struct{
+	union{
+		IVEC2 crd;
+		u8 id;
+	};
+	u1* chunk;
+}CHUNK;
+
+typedef struct{
+	CHUNK* state;
+	u4 cnt;
+}CHUNKHUB;
