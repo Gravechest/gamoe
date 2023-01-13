@@ -15,7 +15,7 @@ void main(){
 	case 0:
 	case 1:
 	case 2:
-		FragColor += texture(t_texture,TextCoords+offset);
+		FragColor += texture(t_texture,TextCoords/1.015625+offset+0.0078125);
 		break;
 	}
 }

@@ -5,6 +5,10 @@ f4 VEC2length(VEC2 p){
 	return sqrtf(p.x*p.x+p.y*p.y);
 }
 
+VEC2 VEC2negR(VEC2 p){
+	return (VEC2){-p.x,-p.y};
+}
+
 VEC2 VEC2absR(VEC2 p){
 	p.x = p.x < 0.0f ? -p.x : p.x;
 	p.y = p.y < 0.0f ? -p.y : p.y;
@@ -48,6 +52,16 @@ void VEC2addVEC2(VEC2* p,VEC2 p2){
 void VEC2subVEC2(VEC2* p,VEC2 p2){
 	p->x -= p2.x;
 	p->y -= p2.y;
+}
+
+void VEC2add(VEC2* p,f4 a){
+	p->x += a;
+	p->y += a;
+}
+
+void VEC2sub(VEC2* p,f4 s){
+	p->x -= s;
+	p->y -= s;
 }
 
 void VEC2div(VEC2* p,f4 d){

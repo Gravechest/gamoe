@@ -22,3 +22,6 @@ VEC2 VEC2divFR(VEC2 p,f4 d);
 VEC2 VEC2mulVEC2R(VEC2 p,VEC2 p2);
 VEC2 VEC2addVEC2R(VEC2 p,VEC2 p2);
 VEC2 VEC2mulR(VEC2 p,f4 m);
+VEC2 VEC2negR(VEC2 p);
+void VEC2sub(VEC2* p,f4 s);
+void VEC2add(VEC2* p,f4 a);

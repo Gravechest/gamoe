@@ -236,18 +236,17 @@ void loadChunk(IVEC2 crd){
 	}
 }
 
-f4 iSquare(VEC2 ro,VEC2 rd,VEC2 boxSize) {
-    VEC2 m = VEC2divFR(rd,1.0f);
-    VEC2 n = VEC2mulVEC2R(m,ro);
-    VEC2 k = VEC2mulVEC2R(VEC2absR(m),boxSize);
-    VEC2 t1 = VEC2subVEC2R(VEC2subVEC2R(n,VEC2mulR(n,2.0f)),k);
-    VEC2 t2 = VEC2addVEC2R(VEC2subVEC2R(n,VEC2mulR(n,2.0f)),k);
-    f4 tN = t_maxf(t1.x,t1.y);
-    f4 tF = t_minf(t2.x,t2.y);
-    if(tN > tF || tF < 0.0f) {
-        return -1.0f;
-    }
-    return tN;
+f4 iSquare(VEC2 ro,VEC2 rd,f4 size){
+	VEC2sub(&ro,size);
+	VEC2 delta = VEC2divFR(rd,1.0f);
+	VEC2 n = VEC2mulVEC2R(delta,ro);
+	VEC2 k = VEC2mulR(VEC2absR(delta),size);
+	VEC2 t1= VEC2subVEC2R(VEC2negR(n),k);
+	VEC2 t2= VEC2addVEC2R(VEC2negR(n),k);
+	f4 tN = t_maxf(t1.x,t1.y);
+	f4 tF = t_minf(t2.x,t2.y);
+	if(tN>tF||tF<0.0f) return -1.0f;
+	return tN;
 }
 
 u1* loadFile(u1* name){
@@ -286,13 +285,12 @@ i4 proc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam){
 
 void illuminateMap(VEC3 color,VEC2 pos,u4 ammount){
 	VEC2subVEC2(&pos,(VEC2){(u4)camera.x,(u4)camera.y});
-	if(pos.x < 0.0f || pos.y < 0.0f || pos.x > RES || pos.y > RES){
+	if(pos.x < 1.0f || pos.y < 1.0f || pos.x > RES || pos.y > RES){
 		f4 offset = rnd();
 		for(f4 i = offset;i < 1.0f+offset;i+=1.0f/ammount){
-			VEC2 direction = VEC2normalizeR((VEC2){cosf(i*PI*2.0f),sinf(i*PI*2.0f)});
-			f4 dst = iSquare(pos,direction,(VEC2){RES,RES});
-			dst = 1.0f;
-			if(dst != -1.0f){
+			VEC2 direction = (VEC2){cosf(i*PI*2.0f),sinf(i*PI*2.0f)};
+			f4 dst = iSquare(pos,direction,RES/2.0f);
+			if(dst > 0.0f){
 				RAY2D ray = ray2dCreate(pos,direction);
 				while((ray.roundPos.x < 0 || ray.roundPos.x >= RES || ray.roundPos.y < 0 || ray.roundPos.y >= RES)){
 					IVEC2 block = {(ray.roundPos.x+(u4)camera.x),(ray.roundPos.y+(u4)camera.y)};
@@ -470,6 +468,7 @@ void drawRect(COLORRECT rect){
 }
 
 void drawSprite(VEC2 pos,VEC2 size,IVEC2 textureSize,RGB* texture){
+	if(pos.x > 0.1f) size.x = 0.0;
 	quad.p1 = (VEC2){pos.x-size.x,pos.y-size.y};
 	quad.p2 = (VEC2){pos.x-size.x,pos.y+size.y};
 	quad.p3 = (VEC2){pos.x+size.x,pos.y-size.y};
@@ -575,14 +574,14 @@ void render(){
 	glVertexAttribPointer(1,2,GL_FLOAT,0,4 * sizeof(float),(void*)(2 * sizeof(float)));
 
 	glUseProgram(colorShader);
-	drawRect((COLORRECT){0.0f,0.0f},RD_SQUARE(2.0f),(VEC3){1.0f,0.0f,0.0f});
-
-	glUseProgram(spriteShader);
+	drawRect((COLORRECT){0.1f,0.0f,0.03f,1.0f,1.0f,0.0f,0.0f});
+	SwapBuffers(dc);
+	drawRect((COLORRECT){0.1f,0.0f,0.03f,1.0f,1.0f,0.0f,0.0f});
 
 	for(;;){
 		if(player.pos.x - RES/2 - CAM_AREA > camera.x){
 			camera.x += player.pos.x - RES/2 - CAM_AREA - camera.x;
-			if(camera.x > RES*2){
+			if(camera.x > RES){
 				printf("yeet\n");
 				for(i4 i = chunkPointer.y-1;i <= chunkPointer.y+1;i++){
 					storeChunk((IVEC2){chunkPointer.x-1,i});
@@ -599,9 +598,9 @@ void render(){
 				for(u4 i = 0;i < bullet.cnt;i++){
 					bullet.state[i].pos.x -= RES;
 				}
-				for(i4 x = MAP-1;x >= 0;x--){
-					for(i4 y = RES*2-1;y >= 0;y--){
-						map[x*MAP+y+RES] = map[x*MAP+y];
+				for(u4 x = 0;x < MAP;x++){
+					for(u4 y = 0;y < RES*2;y++){
+						map[x*MAP+y] = map[x*MAP+y+RES];
 					}
 				}
 				chunkPointer.x++;
@@ -634,7 +633,7 @@ void render(){
 		}
 		if(player.pos.x - RES/2 + CAM_AREA < camera.x){
 			camera.x += player.pos.x - RES/2 + CAM_AREA - camera.x;
-			if(camera.x < 0.0f){
+			if(camera.x < RES){
 				for(i4 i = chunkPointer.y-1;i <= chunkPointer.y+1;i++){
 					storeChunk((IVEC2){chunkPointer.x+1,i});
 				}
@@ -646,9 +645,9 @@ void render(){
 				for(u4 i = 0;i < bullet.cnt;i++){
 					bullet.state[i].pos.x += RES;
 				}
-				for(u4 x = 0;x < MAP;x++){
-					for(u4 y = 0;y < RES*2;y++){
-						map[x*MAP+y] = map[x*MAP+y+RES];
+				for(i4 x = MAP-1;x >= 0;x--){
+					for(i4 y = RES*2-1;y >= 0;y--){
+						map[x*MAP+y+RES] = map[x*MAP+y];
 					}
 				}
 				chunkPointer.x--;
