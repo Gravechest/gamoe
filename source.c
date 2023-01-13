@@ -5,7 +5,10 @@
 #include <math.h>
 
 #include "source.h"
-#include "vec2.h"
+#include "chunk.h"
+#include "tmath.h"
+
+i4 proc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
 
 PIXELFORMATDESCRIPTOR pfd = {sizeof(PIXELFORMATDESCRIPTOR), 1,
 PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER,
@@ -47,9 +50,7 @@ PLAYER player = {.pos = {RES/2+RES,RES/2+RES}};
 
 BULLETHUB bullet;
 ENEMYHUB  enemy;
-CHUNKHUB  chunk;
 VEC2 camera = {RES,RES};
-IVEC2 chunkPointer;
 OPENGLQUEUE gl_queue;
 
 u4 spriteShader,mapShader,enemyShader,colorShader;
@@ -95,50 +96,6 @@ void ray2dIterate(RAY2D *ray){
 	}
 }
 
-i4 hash(i4 x) {
-	x += (x << 10);
-	x ^= (x >> 6);
-	x += (x << 3);
-	x ^= (x >> 11);
-	x += (x << 15);
-	return x;
-}
-
-f4 rnd(){
-	union p {
-		f4 f;
-		i4 u;
-	}r;
-	r.u = hash(__rdtsc());
-	r.u &= 0x007fffff;
-	r.u |= 0x3f800000;
-	return r.f;
-}
-
-i4 irnd(){
-	return hash(__rdtsc());
-}
-
-f4 fract(f4 p){
-	return p - floorf(p);
-}
-
-i4 t_max(i4 p,i4 p2){
-	return p > p2 ? p : p2;
-}
-
-i4 t_min(i4 p,i4 p2){
-	return p < p2 ? p : p2;
-}
-
-f4 t_maxf(f4 p,f4 p2){
-	return p > p2 ? p : p2;
-}
-
-f4 t_minf(f4 p,f4 p2){
-	return p < p2 ? p : p2;
-}
-
 VEC2 mapCoordsToRenderCoords(VEC2 p){
 	return (VEC2){((p.x-camera.x)/(RES/2.0f/RD_CMP)-1.0f),(p.y-camera.y)/(RES/2.0f)-1.0f};
 }
@@ -151,88 +108,10 @@ void genMap(IVEC2 crd,u4 offset,u4 depth,f4 value){
 	else{
 		crd.x *= 2;
 		crd.y *= 2;
-		genMap((IVEC2){crd.x  ,crd.y  },offset,depth-1,value+rnd()-1.5f);
-		genMap((IVEC2){crd.x+1,crd.y  },offset,depth-1,value+rnd()-1.5f);
-		genMap((IVEC2){crd.x  ,crd.y+1},offset,depth-1,value+rnd()-1.5f);
-		genMap((IVEC2){crd.x+1,crd.y+1},offset,depth-1,value+rnd()-1.5f);
-	}
-}
-
-i4 findChunk(IVEC2 crd){
-	union icrd{
-		IVEC2 crd;
-		u8 id;
-	}icrd;
-	icrd.crd = crd;
-	i4 i = 0,j = chunk.cnt-1;
-	while(i <= j){
-		i4 k = i + ((j - i) / 2);
-		if(chunk.state[k].id == icrd.id){
-			return k;
-		}
-		else if(chunk.state[k].id < icrd.id){
-			i = k + 1;
-		}
-		else{
-			j = k - 1;
-		}
-	}
-	return -1;
-}
-
-void storeChunk(IVEC2 crd){
-	union icrd{
-		IVEC2 crd;
-		u8 id;
-	}icrd;
-	icrd.crd = crd;
-	u4 offset = (crd.x-chunkPointer.x+1)*RES+(crd.y-chunkPointer.y+1)*MAP*RES;
-	i4 chunkID = findChunk(crd);
-	if(chunkID==-1){
-		i4 location = 0,bound = chunk.cnt-1;
-		while(location <= bound){
-			i4 k = location + ((bound - location) / 2);
-			if(chunk.state[k].id < icrd.id){
-				location = k + 1;
-			}
-			else{
-				bound = k - 1;
-			}
-		}
-		chunk.state[location].chunk = HeapAlloc(GetProcessHeap(),0,RES*RES);
-		for(i4 i = chunk.cnt;i >= location;i--){
-			chunk.state[i+1] = chunk.state[i];
-		}
-		chunk.state[location].crd = icrd.crd;
-		for(u4 x = 0;x < RES;x++){
-			for(u4 y = 0;y < RES;y++){
-				chunk.state[location].chunk[x*RES+y] = map[y*MAP+x+offset];
-			}
-		}
-		chunk.cnt++;
-	}
-	else{
-		for(u4 x = 0;x < RES;x++){
-			for(u4 y = 0;y < RES;y++){
-				chunk.state[chunkID].chunk[x*RES+y] = map[y*MAP+x+offset];
-			}
-		}
-	}
-}
-
-void loadChunk(IVEC2 crd){
-	u4 chunkID = findChunk((IVEC2){chunkPointer.x+crd.x,chunkPointer.y+crd.y});
-	u4 offset = (crd.x+1)*RES + (crd.y+1)*MAP*RES;
-	if(chunkID==-1){
-		printf("yoink\n");
-		genMap((IVEC2){0,0},offset,7,-1.0f);
-	}
-	else{
-		for(u4 x = 0;x < RES;x++){
-			for(u4 y = 0;y < RES;y++){
-				map[y*MAP+x+offset] = chunk.state[chunkID].chunk[y*RES+x];
-			}
-		}
+		genMap((IVEC2){crd.x  ,crd.y  },offset,depth-1,value+tRnd()-1.5f);
+		genMap((IVEC2){crd.x+1,crd.y  },offset,depth-1,value+tRnd()-1.5f);
+		genMap((IVEC2){crd.x  ,crd.y+1},offset,depth-1,value+tRnd()-1.5f);
+		genMap((IVEC2){crd.x+1,crd.y+1},offset,depth-1,value+tRnd()-1.5f);
 	}
 }
 
@@ -243,8 +122,8 @@ f4 iSquare(VEC2 ro,VEC2 rd,f4 size){
 	VEC2 k = VEC2mulR(VEC2absR(delta),size);
 	VEC2 t1= VEC2subVEC2R(VEC2negR(n),k);
 	VEC2 t2= VEC2addVEC2R(VEC2negR(n),k);
-	f4 tN = t_maxf(t1.x,t1.y);
-	f4 tF = t_minf(t2.x,t2.y);
+	f4 tN = tMaxf(t1.x,t1.y);
+	f4 tF = tMinf(t2.x,t2.y);
 	if(tN>tF||tF<0.0f) return -1.0f;
 	return tN;
 }
@@ -286,7 +165,7 @@ i4 proc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam){
 void illuminateMap(VEC3 color,VEC2 pos,u4 ammount){
 	VEC2subVEC2(&pos,(VEC2){(u4)camera.x,(u4)camera.y});
 	if(pos.x < 1.0f || pos.y < 1.0f || pos.x > RES || pos.y > RES){
-		f4 offset = rnd();
+		f4 offset = tRnd();
 		for(f4 i = offset;i < 1.0f+offset;i+=1.0f/ammount){
 			VEC2 direction = (VEC2){cosf(i*PI*2.0f),sinf(i*PI*2.0f)};
 			f4 dst = iSquare(pos,direction,RES/2.0f);
@@ -315,7 +194,7 @@ void illuminateMap(VEC3 color,VEC2 pos,u4 ammount){
 		}
 	}
 	else{
-		f4 offset = rnd();
+		f4 offset = tRnd();
 		for(f4 i = offset;i < 1.0f+offset;i+=1.0f/ammount){
 			RAY2D ray = ray2dCreate(pos,(VEC2){cosf(i*PI*2.0f),sinf(i*PI*2.0f)});
 			while(ray.roundPos.x > 0.0f && ray.roundPos.x < RES && ray.roundPos.y > 0.0f && ray.roundPos.y < RES){
@@ -413,8 +292,8 @@ void physics(){
 		//collision(&player.pos,player.vel,1.25f);
 		VEC2mul(&player.vel,PR_FRICTION);
 		/*
-		if(rnd()<1.02f && enemy.cnt < 8){
-			enemy.state[enemy.cnt++].pos = (VEC2){rnd()*RES,rnd()*RES};
+		if(tRnd()<1.02f && enemy.cnt < 8){
+			enemy.state[enemy.cnt++].pos = (VEC2){tRnd()*RES,tRnd()*RES};
 		}
 		*/
 		for(u4 i = 0;i < enemy.cnt;i++){
@@ -433,8 +312,8 @@ void physics(){
 				VEC2div(&toPlayer,50.0f);
 				VEC2addVEC2(&enemy.state[i].vel,toPlayer);
 			}
-			else if(rnd() < 1.05f){
-				VEC2addVEC2(&enemy.state[i].vel,(VEC2){(rnd()-1.5f)/2.5f,(rnd()-1.5f)/2.5f});
+			else if(tRnd() < 1.05f){
+				VEC2addVEC2(&enemy.state[i].vel,(VEC2){(tRnd()-1.5f)/2.5f,(tRnd()-1.5f)/2.5f});
 			}
 			VEC2addVEC2(&enemy.state[i].pos,enemy.state[i].vel);
 			collision(&enemy.state[i].pos,enemy.state[i].vel,0.5f);
@@ -494,7 +373,7 @@ void drawEnemy(VEC2 pos,VEC2 size){
 
 void drawMap(){
 	glUseProgram(mapShader);
-	glUniform2f(glGetUniformLocation(mapShader,"offset"),fract(camera.x)/RES,fract(camera.y)/RES);
+	glUniform2f(glGetUniformLocation(mapShader,"offset"),tFract(camera.x)/RES,tFract(camera.y)/RES);
 	glUniform2f(glGetUniformLocation(mapShader,"camera"),camera.x/MAP,camera.y/MAP);
 	glTexImage2D(GL_TEXTURE_2D,0,GL_RGB,RES,RES,0,GL_RGB,GL_UNSIGNED_BYTE,vram);
 	glGenerateMipmap(GL_TEXTURE_2D);
@@ -581,99 +460,19 @@ void render(){
 	for(;;){
 		if(player.pos.x - RES/2 - CAM_AREA > camera.x){
 			camera.x += player.pos.x - RES/2 - CAM_AREA - camera.x;
-			if(camera.x > RES){
-				printf("yeet\n");
-				for(i4 i = chunkPointer.y-1;i <= chunkPointer.y+1;i++){
-					storeChunk((IVEC2){chunkPointer.x-1,i});
-				}
-				for(u4 i = 0;i < chunk.cnt;i++){
-					printf("%i:",chunk.state[i].crd.x);
-					printf("%i\n",chunk.state[i].crd.y);
-				}
-				camera.x -= RES;
-				player.pos.x -= RES;
-				for(u4 i = 0;i < enemy.cnt;i++){
-					enemy.state[i].pos.x -= RES;
-				}
-				for(u4 i = 0;i < bullet.cnt;i++){
-					bullet.state[i].pos.x -= RES;
-				}
-				for(u4 x = 0;x < MAP;x++){
-					for(u4 y = 0;y < RES*2;y++){
-						map[x*MAP+y] = map[x*MAP+y+RES];
-					}
-				}
-				chunkPointer.x++;
-				for(i4 y = -1;y <= 1;y++){
-					loadChunk((IVEC2){1,y});
-				}
-			}
+			if(camera.x > RES+RES/2) worldLoadEast();
 		}
 		if(player.pos.y - RES/2 - CAM_AREA > camera.y){
 			camera.y += player.pos.y - RES/2 - CAM_AREA - camera.y;
-			if(camera.y > RES*2){
-				for(i4 i = chunkPointer.x-1;i <= chunkPointer.x+1;i++){
-					storeChunk((IVEC2){i,chunkPointer.y-1});
-				}
-				camera.y -= RES;
-				player.pos.y -= RES;
-				memcpy(map,map+MAP*RES,MAP*RES);
-				memcpy(map+MAP*RES,map+MAP*RES*2,MAP*RES);
-				for(u4 i = 0;i < enemy.cnt;i++){
-					enemy.state[i].pos.y -= RES;
-				}
-				for(u4 i = 0;i < bullet.cnt;i++){
-					bullet.state[i].pos.y -= RES;
-				}
-				chunkPointer.y++;
-				for(i4 x = -1;x <= 1;x++){
-					loadChunk((IVEC2){x,1});
-				}
-			}
+			if(camera.y > RES+RES/2) worldLoadNorth();
 		}
 		if(player.pos.x - RES/2 + CAM_AREA < camera.x){
 			camera.x += player.pos.x - RES/2 + CAM_AREA - camera.x;
-			if(camera.x < RES){
-				for(i4 i = chunkPointer.y-1;i <= chunkPointer.y+1;i++){
-					storeChunk((IVEC2){chunkPointer.x+1,i});
-				}
-				camera.x += RES;
-				player.pos.x += RES;
-				for(u4 i = 0;i < enemy.cnt;i++){
-					enemy.state[i].pos.x += RES;
-				}
-				for(u4 i = 0;i < bullet.cnt;i++){
-					bullet.state[i].pos.x += RES;
-				}
-				for(i4 x = MAP-1;x >= 0;x--){
-					for(i4 y = RES*2-1;y >= 0;y--){
-						map[x*MAP+y+RES] = map[x*MAP+y];
-					}
-				}
-				chunkPointer.x--;
-				for(i4 y = -1;y <= 1;y++){
-					loadChunk((IVEC2){-1,y});
-				}
-			}
+			if(camera.x < RES-RES/2) worldLoadWest();
 		}
 		if(player.pos.y - RES/2 + CAM_AREA < camera.y){
 			camera.y += player.pos.y - RES/2 + CAM_AREA - camera.y;
-			if(camera.y < 0.0f){
-				camera.y += RES;
-				player.pos.y += RES;
-				for(u4 i = 0;i < enemy.cnt;i++){
-					enemy.state[i].pos.y += RES;
-				}
-				for(u4 i = 0;i < bullet.cnt;i++){
-					bullet.state[i].pos.y += RES;
-				}
-				memcpy(map+MAP*RES*2,map+MAP*RES,MAP*RES);
-				memcpy(map+MAP*RES,map,MAP*RES);
-				chunkPointer.y--;
-				for(i4 x = -1;x <= 1;x++){
-					loadChunk((IVEC2){x,-1});
-				}
-			}
+			if(camera.y < RES-RES/2) worldLoadSouth();
 		}
 		while(gl_queue.cnt){
 			switch(gl_queue.message[--gl_queue.cnt].id){
@@ -699,9 +498,9 @@ void render(){
 			illuminateMap((VEC3){0.1f,0.3f,0.1f},bullet.state[i].pos,1024);
 		}
 		for(u4 i = 0;i < RES*RES;i++){
-			vram[i].r = t_minf(vramf[i].r,255.0f);
-			vram[i].g = t_minf(vramf[i].g,255.0f);
-			vram[i].b = t_minf(vramf[i].b,255.0f);
+			vram[i].r = tMinf(vramf[i].r,255.0f);
+			vram[i].g = tMinf(vramf[i].g,255.0f);
+			vram[i].b = tMinf(vramf[i].b,255.0f);
 		}
 		drawMap();
 		glUseProgram(spriteShader);
@@ -740,7 +539,7 @@ void main(){
 	}
 	for(u4 x = 0;x < 16;x++){
 		for(u4 y = 0;y < 16;y++){
-			bullet.texture[x*16+y].g = t_max(255 - VEC2length((VEC2){fabsf(7.5f-x),fabsf(7.5f-y)}) * 32.0f,0);
+			bullet.texture[x*16+y].g = tMaxf(255 - VEC2length((VEC2){fabsf(7.5f-x),fabsf(7.5f-y)}) * 32.0f,0);
 			player.texture[x*16+y].r = 255 - VEC2length((VEC2){fabsf(7.5f-x),fabsf(7.5f-y)}) * 16.0f;
 		}
 	}

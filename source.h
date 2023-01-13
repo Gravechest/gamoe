@@ -2,6 +2,7 @@
 
 #include "vec2.h"
 #include "small_types.h"
+#include "ivec2.h"
 
 #pragma comment(lib,"Winmm.lib")
 #pragma comment(lib,"opengl32.lib")
@@ -70,13 +71,6 @@ void (*glActiveTexture)(u4 texture);
 void (*glUniform1i)(i4 loc,i4 v1);
 void (*glUniform2f)(i4 loc,f4 v1,f4 v2);
 void (*glUniform3f)(i4 loc,f4 v1,f4 v2,f4 v3);
-
-i4 proc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
-
-typedef struct{
-	i4 x;
-	i4 y;
-}IVEC2;
 
 typedef struct{
 	union{
@@ -172,15 +166,8 @@ typedef struct{
 	OPENGLMESSAGE* message;
 }OPENGLQUEUE;
 
-typedef struct{
-	union{
-		IVEC2 crd;
-		u8 id;
-	};
-	u1* chunk;
-}CHUNK;
-
-typedef struct{
-	CHUNK* state;
-	u4 cnt;
-}CHUNKHUB;
+extern u1* map;
+extern BULLETHUB bullet;
+extern ENEMYHUB  enemy;
+extern PLAYER player;
+extern VEC2 camera;
