@@ -96,6 +96,20 @@ void ray2dIterate(RAY2D *ray){
 	}
 }
 
+VEC3 VEC3mulR(VEC3 p,f4 m){
+	return (VEC3){p.x*m,p.y*m,p.z*m};
+}
+
+VEC3 VEC3addVEC3(VEC3* p,VEC3 p2){
+	p->x += p2.x;
+	p->y += p2.y;
+	p->z += p2.z;
+}
+
+f4 invSqrtf(f4 p){
+	return 1.0f/sqrtf(p);
+}
+
 VEC2 mapCoordsToRenderCoords(VEC2 p){
 	return (VEC2){((p.x-camera.x)/(RES/2.0f/RD_CMP)-1.0f),(p.y-camera.y)/(RES/2.0f)-1.0f};
 }
@@ -258,7 +272,7 @@ void collision(VEC2* pos,VEC2 vel,f4 size){
 u1 lineOfSight(VEC2 pos,VEC2 dir,u4 iterations){
 	RAY2D ray = ray2dCreate(pos,dir);
 	for(u4 i = 0;i < iterations;i++){
-		if(map[(u4)(ray.roundPos.y)*RES+(u4)(ray.roundPos.x)]){
+		if(map[(u4)(ray.roundPos.y)*MAP+(u4)(ray.roundPos.x)]){
 			return 0;	
 		}
 		ray2dIterate(&ray);
@@ -291,11 +305,9 @@ void physics(){
 		VEC2addVEC2(&player.pos,player.vel);
 		//collision(&player.pos,player.vel,1.25f);
 		VEC2mul(&player.vel,PR_FRICTION);
-		/*
 		if(tRnd()<1.02f && enemy.cnt < 8){
 			enemy.state[enemy.cnt++].pos = (VEC2){tRnd()*RES,tRnd()*RES};
 		}
-		*/
 		for(u4 i = 0;i < enemy.cnt;i++){
 			if(enemy.state[i].pos.x < 1.0f || enemy.state[i].pos.x > RES*3-1.0f ||
 			enemy.state[i].pos.y < 1.0f || enemy.state[i].pos.y > RES*3-1.0f){
@@ -316,7 +328,7 @@ void physics(){
 				VEC2addVEC2(&enemy.state[i].vel,(VEC2){(tRnd()-1.5f)/2.5f,(tRnd()-1.5f)/2.5f});
 			}
 			VEC2addVEC2(&enemy.state[i].pos,enemy.state[i].vel);
-			collision(&enemy.state[i].pos,enemy.state[i].vel,0.5f);
+			collision(&enemy.state[i].pos,enemy.state[i].vel,ENEMY_SIZE);
 			VEC2mul(&enemy.state[i].vel,PR_FRICTION);	
 		}
 		for(u4 i = 0;i < bullet.cnt;i++){
@@ -360,13 +372,14 @@ void drawSprite(VEC2 pos,VEC2 size,IVEC2 textureSize,RGB* texture){
 	glDrawArrays(GL_TRIANGLES,0,24);
 }
 
-void drawEnemy(VEC2 pos,VEC2 size){
+void drawEnemy(VEC2 pos,VEC2 size,VEC3 luminance){
 	quad.p1 = (VEC2){pos.x-size.x,pos.y-size.y};
 	quad.p2 = (VEC2){pos.x-size.x,pos.y+size.y};
 	quad.p3 = (VEC2){pos.x+size.x,pos.y-size.y};
 	quad.p4 = (VEC2){pos.x+size.x,pos.y+size.y};
 	quad.p5 = (VEC2){pos.x-size.x,pos.y+size.y};
 	quad.p6 = (VEC2){pos.x+size.x,pos.y-size.y};
+	glUniform3f(glGetUniformLocation(enemyShader,"luminance"),luminance.r,luminance.g,luminance.b);
 	glBufferData(GL_ARRAY_BUFFER,24 * sizeof(float),&quad,GL_DYNAMIC_DRAW);
 	glDrawArrays(GL_TRIANGLES,0,24);
 }
@@ -397,6 +410,20 @@ u4 loadShader(u1* fragment,u1* vertex){
 	HeapFree(GetProcessHeap(),0,fragmentSource);
 	HeapFree(GetProcessHeap(),0,vertexSource);
 	return shaderProgram;
+}
+
+VEC3 calculateLuminance(VEC2 pos){
+	VEC3 color = {0.0f,0.0f,0.0f};
+	for(u4 i = 0;i < bullet.cnt;i++){
+		u4 iterations = (u4)fabsf(pos.x-bullet.state[i].pos.x)+(u4)fabsf(pos.y-bullet.state[i].pos.y);
+		VEC2 toBullet = VEC2normalizeR(VEC2subVEC2R(pos,bullet.state[i].pos));
+		if(lineOfSight(pos,toBullet,iterations)){
+			f4 dst = VEC2length(VEC2subVEC2R(pos,bullet.state[i].pos));
+			VEC3 luminance = VEC3mulR(BULLET_LUMINANCE,invSqrtf(dst));
+			VEC3addVEC3(&color,luminance);
+		}
+	}
+	return color;
 }
 
 void render(){
@@ -438,10 +465,10 @@ void render(){
 	glBindTexture(GL_TEXTURE_2D,map_texture);
 	glBindTexture(GL_TEXTURE_2D,texture);
 
-	glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_NEAREST);
+	//glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_NEAREST);
 	glUseProgram(mapShader);
 	glActiveTexture(GL_TEXTURE1);
-	glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_NEAREST);
+	//glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_NEAREST);
 	glTexImage2D(GL_TEXTURE_2D,0,GL_R8,MAP,MAP,0,GL_RED,GL_UNSIGNED_BYTE,map);
 	glGenerateMipmap(GL_TEXTURE_2D);
 	glUniform1i(glGetUniformLocation(mapShader,"map"),1);
@@ -493,9 +520,9 @@ void render(){
 				illuminateMap((VEC3){0.02f,0.02f,0.2f},(VEC2){(f4)(i%MAP)+0.5f,(f4)(i/MAP)+0.5f},1024*4);
 			}
 		}
-		illuminateMap((VEC3){0.2f,0.02f,0.02f},player.pos,1024);
+		illuminateMap(PLAYER_LUMINANCE,player.pos,1024);
 		for(u4 i = 0;i < bullet.cnt;i++){
-			illuminateMap((VEC3){0.1f,0.3f,0.1f},bullet.state[i].pos,1024);
+			illuminateMap(BULLET_LUMINANCE,bullet.state[i].pos,1024);
 		}
 		for(u4 i = 0;i < RES*RES;i++){
 			vram[i].r = tMinf(vramf[i].r,255.0f);
@@ -504,13 +531,14 @@ void render(){
 		}
 		drawMap();
 		glUseProgram(spriteShader);
-		drawSprite(mapCoordsToRenderCoords(player.pos),RD_SQUARE(0.018f),(IVEC2){16,16},player.texture);
+		drawSprite(mapCoordsToRenderCoords(player.pos),RD_SQUARE(PLAYER_SIZE),(IVEC2){16,16},player.texture);
 		for(u4 i = 0;i < bullet.cnt;i++){
-			drawSprite(mapCoordsToRenderCoords(bullet.state[i].pos),(VEC2){0.01f*RD_CMP,0.01f},(IVEC2){16,16},bullet.texture);
+			drawSprite(mapCoordsToRenderCoords(bullet.state[i].pos),RD_SQUARE(BULLET_SIZE),(IVEC2){16,16},bullet.texture);
 		}
 		glUseProgram(enemyShader);
 		for(u4 i = 0;i < enemy.cnt;i++){
-			drawEnemy(mapCoordsToRenderCoords(enemy.state[i].pos),(VEC2){0.01f,0.01f});
+			VEC3 luminance = calculateLuminance(enemy.state[i].pos);
+			drawEnemy(mapCoordsToRenderCoords(enemy.state[i].pos),RD_SQUARE(ENEMY_SIZE),luminance);
 		}
 		memset(vramf,0,sizeof(VEC3)*RES*RES);
 		SwapBuffers(dc);

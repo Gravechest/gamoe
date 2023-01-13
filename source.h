@@ -7,14 +7,22 @@
 #pragma comment(lib,"Winmm.lib")
 #pragma comment(lib,"opengl32.lib")
 
+#define RD_CMP 0.562500f
+#define RD_CONVERT(X) (X*0.0072f)
+#define RD_SQUARE(X) (VEC2){RD_CONVERT(X)*RD_CMP,RD_CONVERT(X)}
+
+#define BULLET_LUMINANCE (VEC3){0.1f,0.3f,0.1f}
+#define BULLET_SIZE 1.0f
+
+#define PLAYER_LUMINANCE (VEC3){0.2f,0.02f,0.02f}
+#define PLAYER_SIZE 2.5f
+
+#define ENEMY_SIZE 1.0f
+
 #define PLAYER_SIZE 1.25f
 #define CAM_AREA 0.0f
 
 #define PI 3.141f
-
-#define RD_CMP 0.562500f
-
-#define RD_SQUARE(X) (VEC2){X*RD_CMP,X}
 
 #define GL_FRAGMENT_SHADER 0x8B30
 #define GL_VERTEX_SHADER 0x8B31
@@ -165,6 +173,8 @@ typedef struct{
 	u4 cnt;
 	OPENGLMESSAGE* message;
 }OPENGLQUEUE;
+
+void genMap(IVEC2 crd,u4 offset,u4 depth,f4 value);
 
 extern u1* map;
 extern BULLETHUB bullet;

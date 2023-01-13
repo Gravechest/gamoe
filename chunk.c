@@ -74,7 +74,6 @@ void loadChunk(IVEC2 crd){
 	u4 chunkID = findChunk((IVEC2){chunkPointer.x+crd.x,chunkPointer.y+crd.y});
 	u4 offset = (crd.x+1)*RES + (crd.y+1)*MAP*RES;
 	if(chunkID==-1){
-		printf("yoink\n");
 		genMap((IVEC2){0,0},offset,7,-1.0f);
 	}
 	else{

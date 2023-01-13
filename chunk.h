@@ -16,7 +16,6 @@ typedef struct{
 	u4 cnt;
 }CHUNKHUB;
 
-
 void worldLoadEast();
 void worldLoadWest();
 void worldLoadNorth();
