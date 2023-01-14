@@ -73,3 +73,9 @@ void VEC2mul(VEC2* p,f4 m){
 	p->x *= m;
 	p->y *= m;
 }
+
+void VEC2rot(VEC2* p,f4 rot){
+    f4 b = cosf(rot) * p->x - sinf(rot) * p->y;
+    p->y = sinf(rot) * p->x + cosf(rot) * p->y;
+	p->x = b;
+}

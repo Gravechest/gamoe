@@ -7,7 +7,12 @@
 #pragma comment(lib,"Winmm.lib")
 #pragma comment(lib,"opengl32.lib")
 
-#define RD_CMP 0.562500f
+#define RES 128
+#define MAP (RES*3)
+
+#define PLAYER_MOUSE(X) (VEC2){X.x/8.4375f,RES-X.y/8.4375f}
+
+#define RD_CMP 0.5625f
 #define RD_CONVERT(X) (X*0.0072f)
 #define RD_SQUARE(X) (VEC2){RD_CONVERT(X)*RD_CMP,RD_CONVERT(X)}
 
@@ -19,10 +24,9 @@
 
 #define ENEMY_SIZE 1.0f
 
-#define PLAYER_SIZE 1.25f
 #define CAM_AREA 0.0f
 
-#define PI 3.141f
+#define PI 3.14159f
 
 #define GL_FRAGMENT_SHADER 0x8B30
 #define GL_VERTEX_SHADER 0x8B31
@@ -52,10 +56,6 @@
 
 #define WNDX 1080
 #define WNDY 1920
-
-#define RES 128
-
-#define MAP (RES*3)
 
 u4 (*glCreateProgram)();
 u4 (*glCreateShader)(u4 shader);
@@ -117,6 +117,7 @@ typedef struct{
 }RGB;
 
 typedef struct{
+	u4 lightBulletCnt;
 	VEC2 vel;
 	VEC2 pos;
 	RGB* texture;
@@ -160,6 +161,16 @@ typedef struct{
 	VEC2 size;
 	VEC3 color;
 }COLORRECT;
+
+typedef struct{
+	VEC2 pos_org;
+	VEC2 pos_dst;
+}LASER;
+
+typedef struct{
+	u4 cnt;
+	LASER* state;
+}LASERHUB;
 
 typedef struct{
 	u4 id;

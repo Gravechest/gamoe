@@ -25,3 +25,4 @@ VEC2 VEC2mulR(VEC2 p,f4 m);
 VEC2 VEC2negR(VEC2 p);
 void VEC2sub(VEC2* p,f4 s);
 void VEC2add(VEC2* p,f4 a);
+void VEC2rot(VEC2* p,f4 rot);
