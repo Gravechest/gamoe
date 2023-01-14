@@ -21,4 +21,4 @@ void worldLoadWest();
 void worldLoadNorth();
 void worldLoadSouth();
 
-extern CHUNKHUB  chunk;
+extern CHUNKHUB chunk;

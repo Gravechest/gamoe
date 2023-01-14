@@ -16,11 +16,20 @@
 #define RD_CONVERT(X) (X*0.0072f)
 #define RD_SQUARE(X) (VEC2){RD_CONVERT(X)*RD_CMP,RD_CONVERT(X)}
 
+#define LASER_LUMINANCE (VEC3){0.1f,0.02f,0.07f}
+#define RD_LASER_LUMINANCE (VEC3){LASER_LUMINANCE.r*8.0f,LASER_LUMINANCE.g*8.0f,LASER_LUMINANCE.b*8.0f}
+#define ENT_LASER_LUMINANCE (VEC3){LASER_LUMINANCE.r*0.125f,LASER_LUMINANCE.g*0.125f,LASER_LUMINANCE.b*0.125f}
+
 #define BULLET_LUMINANCE (VEC3){0.1f,0.3f,0.1f}
 #define BULLET_SIZE 1.0f
 
 #define PLAYER_LUMINANCE (VEC3){0.2f,0.02f,0.02f}
 #define PLAYER_SIZE 2.5f
+#define PLAYER_WEAPON_COOLDOWN 60
+
+#define CROSSHAIR_SPRITE (VEC2){0.0f,0.5f}
+#define BULLET_SPRITE (VEC2){0.5f,0.0f}
+#define PLAYER_SPRITE (VEC2){0.0f,0.0f}
 
 #define ENEMY_SIZE 1.0f
 
@@ -56,6 +65,8 @@
 
 #define WNDX 1080
 #define WNDY 1920
+
+#define TEXTURE16_SIZE 32
 
 u4 (*glCreateProgram)();
 u4 (*glCreateShader)(u4 shader);
@@ -117,10 +128,10 @@ typedef struct{
 }RGB;
 
 typedef struct{
+	u4 weaponCooldown;
 	u4 lightBulletCnt;
 	VEC2 vel;
 	VEC2 pos;
-	RGB* texture;
 }PLAYER;
 
 typedef struct{
@@ -131,7 +142,6 @@ typedef struct{
 typedef struct{
 	u4 cnt;
 	BULLET* state;
-	RGB* texture;
 }BULLETHUB;
 
 typedef struct{
@@ -165,12 +175,25 @@ typedef struct{
 typedef struct{
 	VEC2 pos_org;
 	VEC2 pos_dst;
+	u4 health;
 }LASER;
 
 typedef struct{
 	u4 cnt;
 	LASER* state;
 }LASERHUB;
+
+typedef struct{
+	VEC3 color;
+	VEC2 pos;
+	VEC2 vel;
+	u4 health;
+}PARTICLE;
+
+typedef struct{
+	u4 cnt;
+	PARTICLE* state;
+}PARTICLEHUB;
 
 typedef struct{
 	u4 id;
