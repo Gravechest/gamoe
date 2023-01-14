@@ -58,7 +58,7 @@ VEC2 camera = {RES,RES};
 OPENGLQUEUE gl_queue;
 RGB* texture16;
 
-u4 spriteShader,mapShader,enemyShader,colorShader;
+u4 spriteShader,mapShader,enemyShader,colorShader,particleShader;
 
 RAY2D ray2dCreate(VEC2 pos,VEC2 dir){
 	RAY2D ray;
@@ -220,10 +220,10 @@ i4 proc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam){
 				}
 				for(u4 i = 0;i < enemy.cnt;i++){
 					if((u4)enemy.state[i].pos.x == ray.roundPos.x && (u4)enemy.state[i].pos.y == ray.roundPos.y){
-						for(u4 j = 0;j < 64;j++){
-							particle.state[particle.cnt].color = (VEC3){(tRnd()-1.0f)*0.125f,(tRnd()-1.0f)*0.125f,(tRnd()-1.0f)*0.125f};
+						for(u4 j = 0;j < 16;j++){
+							particle.state[particle.cnt].color = LASER_LUMINANCE;
 							particle.state[particle.cnt].vel = (VEC2){(tRnd()-1.5f)*0.25f,(tRnd()-1.5f)*0.25f};
-							particle.state[particle.cnt].health = tRnd()*200.0f;
+							particle.state[particle.cnt].health = tRnd()*50.0f;
 							particle.state[particle.cnt++].pos = enemy.state[i].pos;
 						}
 						for(u4 j = i;j < enemy.cnt;j++) enemy.state[j] = enemy.state[j+1];
@@ -493,6 +493,18 @@ void drawLaser(VEC2 origin,VEC2 destination,VEC3 color){
 	glDrawArrays(GL_TRIANGLES,0,24);
 }
 
+void drawParticle(VEC2 pos,VEC2 size,VEC3 luminance){
+	quad.p1 = (VEC2){pos.x-size.x,pos.y-size.y};
+	quad.p2 = (VEC2){pos.x-size.x,pos.y+size.y};
+	quad.p3 = (VEC2){pos.x+size.x,pos.y-size.y};
+	quad.p4 = (VEC2){pos.x+size.x,pos.y+size.y};
+	quad.p5 = (VEC2){pos.x-size.x,pos.y+size.y};
+	quad.p6 = (VEC2){pos.x+size.x,pos.y-size.y};
+	glUniform3f(glGetUniformLocation(particleShader,"luminance"),luminance.r,luminance.g,luminance.b);
+	glBufferData(GL_ARRAY_BUFFER,24 * sizeof(float),&quad,GL_DYNAMIC_DRAW);
+	glDrawArrays(GL_TRIANGLES,0,24);
+}
+
 u4 loadShader(u1* fragment,u1* vertex){
 	u1*	fragmentSource = loadFile(fragment);
 	u1* vertexSource   = loadFile(vertex);
@@ -569,10 +581,11 @@ void render(){
 
 	wglSwapIntervalEXT(0);
 
-	spriteShader = loadShader("shader/sprite.frag","shader/vertex.vert");
-	mapShader    = loadShader("shader/map.frag"   ,"shader/vertex.vert");
-	enemyShader  = loadShader("shader/enemy.frag" ,"shader/vertex.vert");
-	colorShader  = loadShader("shader/color.frag" ,"shader/vertex.vert");
+	spriteShader   = loadShader("shader/sprite.frag"  ,"shader/vertex.vert");
+	mapShader      = loadShader("shader/map.frag"     ,"shader/vertex.vert");
+	enemyShader    = loadShader("shader/enemy.frag"   ,"shader/vertex.vert");
+	colorShader    = loadShader("shader/color.frag"   ,"shader/vertex.vert");
+	particleShader = loadShader("shader/particle.frag","shader/vertex.vert");
 
 	glCreateBuffers(1,&VBO);
 	glBindBuffer(GL_ARRAY_BUFFER,VBO);
@@ -681,8 +694,9 @@ void render(){
 			VEC3 luminance = calculateLuminance(enemy.state[i].pos);
 			drawEnemy(mapCrdToRenderCrd(enemy.state[i].pos),RD_SQUARE(ENEMY_SIZE),luminance);
 		}
+		glUseProgram(particleShader);
 		for(u4 i = 0;i < particle.cnt;i++){
-			drawEnemy(mapCrdToRenderCrd(particle.state[i].pos),RD_SQUARE(1.0f),VEC3normalizeR(particle.state[i].color));
+			drawParticle(mapCrdToRenderCrd(particle.state[i].pos),RD_SQUARE(1.0f),VEC3normalizeR(particle.state[i].color));
 		}
 		glUseProgram(colorShader);
 		drawRect((VEC2){0.13f,0.0f},(VEC2){0.01f,1.0f},(VEC3){0.7f,0.0f,0.0f});
