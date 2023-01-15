@@ -1,12 +1,13 @@
-#include <windows.h>
-#include <GL/gl.h>
 #include <intrin.h>
 #include <stdio.h>
 #include <math.h>
 
+#include "opengl.h"
 #include "source.h"
 #include "chunk.h"
 #include "tmath.h"
+#include "textures.h"
+#include "ray.h"
 
 i4 proc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
 
@@ -21,136 +22,20 @@ WNDCLASS wndclass = {.lpfnWndProc = proc,.lpszClassName = "class",.lpszMenuName 
 HWND window;
 HDC dc;
 MSG Msg;
-u4 VBO;
-u4 texture,map_texture,sprite_texture;
-
-QUAD quad = {
-	.tc1={0.0f,0.0f},
-	.tc2={0.0f,1.0f},
-	.tc3={1.0f,0.0f},
-	.tc4={1.0f,1.0f},
-	.tc5={0.0f,1.0f},
-	.tc6={1.0f,0.0f}
-};
-
-QUAD sprite_quad;
-
-QUAD map_quad = {
-	.p1={-1.0f  ,-1.0f  },.tc1={0.0f,0.0f},
-	.p2={-1.0f  , 1.0f  },.tc2={0.0f,1.0f},
-	.p3={ 0.125f,-1.0f  },.tc3={1.0f,0.0f},
-	.p4={ 0.125f, 1.0f  },.tc4={1.0f,1.0f},
-	.p5={-1.0f  , 1.0f  },.tc5={0.0f,1.0f},
-	.p6={ 0.125f,-1.0f  },.tc6={1.0f,0.0f}
-};
 
 VEC3* vramf;
 RGB*  vram;
 
 u1* map;
 CAMERA camera = {RES,RES,RES};
+CAMERA camera_new = {RES,RES,RES};
 PLAYER player = {.pos = {RES/2+RES,RES/2+RES}};
 
 BULLETHUB bullet;
 ENEMYHUB  enemy;
 LASERHUB  laser;
 PARTICLEHUB particle;
-OPENGLQUEUE gl_queue;
 RGB* texture16;
-
-u4 spriteShader,mapShader,enemyShader,colorShader,particleShader;
-
-RAY2D ray2dCreate(VEC2 pos,VEC2 dir){
-	RAY2D ray;
-
-	ray.pos = pos;
-	ray.dir = dir;
-	ray.delta = VEC2absR(VEC2divFR(ray.dir,1.0f));
-
-	if(ray.dir.x < 0.0f){
-		ray.step.x = -1;
-		ray.side.x = (ray.pos.x-(int)ray.pos.x) * ray.delta.x;
-	}
-	else{
-		ray.step.x = 1;
-		ray.side.x = ((int)ray.pos.x + 1.0f - ray.pos.x) * ray.delta.x;
-	}
-	if(ray.dir.y < 0.0f){
-		ray.step.y = -1;
-		ray.side.y = (ray.pos.y-(int)ray.pos.y) * ray.delta.y;
-	}
-	else{
-		ray.step.y = 1;
-		ray.side.y = ((int)ray.pos.y + 1.0f - ray.pos.y) * ray.delta.y;
-	}
-	ray.roundPos.x = ray.pos.x;
-	ray.roundPos.y = ray.pos.y;
-	return ray;
-}
-
-void ray2dIterate(RAY2D *ray){
-	if(ray->side.x < ray->side.y){
-		ray->roundPos.x += ray->step.x;
-		ray->side.x += ray->delta.x;
-		ray->hitSide = 0;
-	}
-	else{
-		ray->roundPos.y += ray->step.y;
-		ray->side.y += ray->delta.y;
-		ray->hitSide = 1;
-	}
-}
-
-VEC2 ray2dGetCoords(RAY2D ray){
-	f4 wall;
-	switch(ray.hitSide){
-	case 0:
-		wall = ray.pos.y + (ray.side.x - ray.delta.x) * ray.dir.y;
-		if(ray.dir.x > 0.0f) return (VEC2){ray.roundPos.x     ,wall};
-		else                 return (VEC2){ray.roundPos.x+1.0f,wall};
-	case 1:
-		wall = ray.pos.x + (ray.side.y - ray.delta.y) * ray.dir.x;
-		if(ray.dir.y > 0.0f) return (VEC2){wall,ray.roundPos.y     };
-		else                 return (VEC2){wall,ray.roundPos.y+1.0f};
-	}
-}
-
-VEC3 VEC3mulR(VEC3 p,f4 m){
-	return (VEC3){p.x*m,p.y*m,p.z*m};
-}
-
-void VEC3mul(VEC3* p,f4 m){
-	p->x *= m;
-	p->y *= m;
-	p->z *= m;
-}
-
-VEC3 VEC3addVEC3(VEC3* p,VEC3 p2){
-	p->x += p2.x;
-	p->y += p2.y;
-	p->z += p2.z;
-}
-
-f4 VEC3length(VEC3 p){
-	return sqrtf(p.x*p.x+p.y*p.y+p.z*p.z);
-}
-
-VEC3 VEC3normalizeR(VEC3 p){
-	f4 l = VEC3length(p);
-	return (VEC3){p.x/l,p.y/l,p.z/l};
-}
-
-f4 invSqrtf(f4 p){
-	return 1.0f/sqrtf(p);
-}
-
-VEC2 mapCrdToRenderCrd(VEC2 p){
-	return (VEC2){((p.x-camera.pos.x)/(camera.zoom/2.0f/RD_CMP)-1.0f),(p.y-camera.pos.y)/(camera.zoom/2.0f)-1.0f};
-}
-
-VEC2 screenCrdToRenderCrd(VEC2 p){
-	return (VEC2){((p.x)/(RES/2.0f/RD_CMP)-1.0f),(p.y)/(RES/2.0f)-1.0f};
-}
 
 void genMap(IVEC2 crd,u4 offset,u4 depth,f4 value){
 	if(!depth){
@@ -180,21 +65,19 @@ u1 iSquare(VEC2 ro,VEC2 rd,f4 size){
 	return 1;
 }
 
-u1* loadFile(u1* name){
-	HANDLE h = CreateFileA(name,GENERIC_READ,0,0,OPEN_EXISTING,FILE_ATTRIBUTE_NORMAL,0);
-	u4 fsize = GetFileSize(h,0);
-	u1* r = HeapAlloc(GetProcessHeap(),0,fsize+1);
-	ReadFile(h,r,fsize,0,0);
-	r[fsize] = 0;
-	CloseHandle(h);
-	return r;
-}
-
 VEC2 getCursorPos(){
 	POINT cursor;
 	GetCursorPos(&cursor);
 	ScreenToClient(window,&cursor);
 	return PLAYER_MOUSE(cursor);
+}
+
+VEC2 getCursorPosMap(){
+	POINT cursor;
+	GetCursorPos(&cursor);
+	ScreenToClient(window,&cursor);
+	cursor.y = WNDX-cursor.y;
+	return (VEC2){(f4)cursor.x*camera.zoom/WNDX,(f4)cursor.y*camera.zoom/WNDX};
 }
 
 u1 lineOfSight(VEC2 pos,VEC2 dir,u4 iterations){
@@ -222,40 +105,41 @@ i4 proc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam){
 	case WM_MOUSEWHEEL:{
 		i2 scroll_ammount = wParam>>16;
 		i4 zoom_adjust = scroll_ammount/30;
-		camera.zoom += zoom_adjust;
-		if(camera.zoom>RES) camera.zoom = RES;
-		VEC2sub(&camera.pos,zoom_adjust*200.0f);
+		camera_new.zoom -= zoom_adjust;
+		if(camera_new.zoom>RES) camera_new.zoom = RES;
+		if(camera_new.zoom<8)   camera_new.zoom = 8;
+		VEC2sub(&camera_new.pos,zoom_adjust*200.0f);
 		break;
 	}
 	case WM_RBUTTONDOWN:
-		if(player.lightBulletCnt){
-			VEC2 direction = VEC2subVEC2R(getCursorPos(),VEC2subVEC2R(player.pos,camera.pos));
+		if(1){
+			VEC2 direction = VEC2subVEC2R(getCursorPosMap(),VEC2subVEC2R(player.pos,camera.pos));
 			bullet.state[bullet.cnt].pos = player.pos;
 			bullet.state[bullet.cnt++].vel = VEC2divR(VEC2normalizeR(direction),5.0f);
 			player.lightBulletCnt--;
 		}
 		break;
 	case WM_LBUTTONDOWN:
-		if(!player.weaponCooldown){
-			VEC2 direction = VEC2subVEC2R(getCursorPos(),VEC2subVEC2R(player.pos,camera.pos));
+		if(!player.weapon_cooldown){
+			VEC2 direction = VEC2subVEC2R(getCursorPosMap(),VEC2subVEC2R(player.pos,camera.pos));
 			RAY2D ray = ray2dCreate(player.pos,direction);
 			while(ray.roundPos.x >= 0 && ray.roundPos.x < MAP && ray.roundPos.y >= 0 && ray.roundPos.y < MAP){
-				if(map[ray.roundPos.y*MAP+ray.roundPos.x]==1){
-					break;
-				}
+				if(map[ray.roundPos.y*MAP+ray.roundPos.x]==1) break;
 				ray2dIterate(&ray);
 			}
 			for(u4 i = 0;i < enemy.cnt;i++){
-				if(iSquare(VEC2subVEC2R(player.pos,enemy.state[i].pos),direction,ENEMY_SIZE*1.5f)){
-					u4 iterations = (u4)fabsf(player.pos.x-enemy.state[i].pos.x)+(u4)fabsf(player.pos.y-enemy.state[i].pos.y);
+				if(iSquare(VEC2subVEC2R(player.pos,enemy.state[i].pos),direction,ENEMY_SIZE)){
+					u4 iterations = (u4)tAbsf(player.pos.x-enemy.state[i].pos.x)+(u4)tAbsf(player.pos.y-enemy.state[i].pos.y);
 					if(lineOfSight(player.pos,direction,iterations)){
+						f4 dst = VEC2length(VEC2subVEC2R(player.pos,enemy.state[i].pos));
+						VEC2 ray_end_pos = VEC2addVEC2R(player.pos,VEC2mulR(VEC2normalizeR(direction),dst));
 						for(u4 j = 0;j < 16;j++){
 							particle.state[particle.cnt].color = LASER_LUMINANCE;
 							particle.state[particle.cnt].vel = VEC2mulR(VEC2rotR(direction,(tRnd()-1.5f)*0.5f),(tRnd()-0.5f)*0.01f);
 							particle.state[particle.cnt].health = tRnd()*20.0f;
-							particle.state[particle.cnt++].pos = enemy.state[i].pos;
+							particle.state[particle.cnt++].pos = ray_end_pos;
 						}
-						laser.state[laser.cnt].pos_dst = enemy.state[i].pos;
+						laser.state[laser.cnt].pos_dst = ray_end_pos;
 						for(u4 j = i;j < enemy.cnt;j++) enemy.state[j] = enemy.state[j+1];
 						enemy.cnt--;
 						goto end;
@@ -267,84 +151,11 @@ i4 proc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam){
 		end:
 			laser.state[laser.cnt].pos_org = player.pos;
 			laser.state[laser.cnt++].health = 5;
-			player.weaponCooldown = PLAYER_WEAPON_COOLDOWN;
+			player.weapon_cooldown = PLAYER_WEAPON_COOLDOWN;
 		}
 		break;
 	}
 	return DefWindowProcA(hwnd,msg,wParam,lParam);
-}
-
-void illuminateOutside(VEC3 color,VEC2 pos,f4 angle){
-	VEC2 direction = (VEC2){cosf(angle*PI*2.0f),sinf(angle*PI*2.0f)};
-	if(iSquare(pos,direction,RES/2.0f)){
-		RAY2D ray = ray2dCreate(pos,direction);
-		while((ray.roundPos.x < 0 || ray.roundPos.x >= camera.zoom || ray.roundPos.y < 0 || ray.roundPos.y >= camera.zoom)){
-			IVEC2 block = {(ray.roundPos.x+(u4)camera.pos.x),(ray.roundPos.y+(u4)camera.pos.y)};
-			if(block.y*MAP+block.x<0||block.y*MAP+block.x>MAP*MAP||map[block.y*MAP+block.x]==1){
-				break;
-			}
-			ray2dIterate(&ray);
-		}
-		while(ray.roundPos.x >= 0 && ray.roundPos.x < camera.zoom && ray.roundPos.y >= 0 && ray.roundPos.y < camera.zoom){
-			if(map[(ray.roundPos.y+(u4)camera.pos.y)*MAP+(ray.roundPos.x+(u4)camera.pos.x)]==1){
-				vramf[ray.roundPos.y*(u4)camera.zoom+ray.roundPos.x].r+=color.r*4.0f;
-				vramf[ray.roundPos.y*(u4)camera.zoom+ray.roundPos.x].g+=color.g*4.0f;
-				vramf[ray.roundPos.y*(u4)camera.zoom+ray.roundPos.x].b+=color.b*4.0f;
-				break;
-			}
-			vramf[ray.roundPos.y*(u4)camera.zoom+ray.roundPos.x].r+=color.r;
-			vramf[ray.roundPos.y*(u4)camera.zoom+ray.roundPos.x].g+=color.g;
-			vramf[ray.roundPos.y*(u4)camera.zoom+ray.roundPos.x].b+=color.b;
-			ray2dIterate(&ray);
-		}
-	}
-}
-
-void illuminateInside(VEC3 color,VEC2 pos,f4 angle){
-	RAY2D ray = ray2dCreate(pos,(VEC2){cosf(angle*PI*2.0f),sinf(angle*PI*2.0f)});
-	while(ray.roundPos.x > 0.0f && ray.roundPos.x < camera.zoom && ray.roundPos.y > 0.0f && ray.roundPos.y < camera.zoom){
-		if(map[(ray.roundPos.y+(u4)camera.pos.y)*MAP+(ray.roundPos.x+(u4)camera.pos.x)]==1){
-			vramf[ray.roundPos.y*(u4)camera.zoom+ray.roundPos.x].r+=color.r*4.0f;
-			vramf[ray.roundPos.y*(u4)camera.zoom+ray.roundPos.x].g+=color.g*4.0f;
-			vramf[ray.roundPos.y*(u4)camera.zoom+ray.roundPos.x].b+=color.b*4.0f;
-			break;
-		}
-		vramf[ray.roundPos.y*(u4)camera.zoom+ray.roundPos.x].r+=color.r;
-		vramf[ray.roundPos.y*(u4)camera.zoom+ray.roundPos.x].g+=color.g;
-		vramf[ray.roundPos.y*(u4)camera.zoom+ray.roundPos.x].b+=color.b;
-		ray2dIterate(&ray);
-	}
-}
-
-void illuminateMapPart(VEC3 color,VEC2 pos,VEC2 angle,u4 ammount,f4 wideness){
-	f4 tan_angle = atan2f(angle.y,angle.x) / (PI*2.0f);
-	tan_angle -= wideness/2.0f;
-	VEC2subVEC2(&pos,(VEC2){(u4)camera.pos.x,(u4)camera.pos.y});
-	if(pos.x < 1.0f || pos.y < 1.0f || pos.x > camera.zoom || pos.y > camera.zoom){
-		for(f4 i = tan_angle;i < wideness+tan_angle;i+=wideness/ammount){
-			illuminateOutside(color,pos,i);
-		}
-	}
-	else{
-		for(f4 i = tan_angle;i < wideness+tan_angle;i+=wideness/ammount){
-			illuminateInside(color,pos,i);
-		}	
-	}
-}
-
-void illuminateMap(VEC3 color,VEC2 pos,u4 ammount){
-	VEC2subVEC2(&pos,(VEC2){(u4)camera.pos.x,(u4)camera.pos.y});
-	f4 offset = tRnd();
-	if(pos.x < 1.0f || pos.y < 1.0f || pos.x > camera.zoom || pos.y > camera.zoom){
-		for(f4 i = offset;i < 1.0f+offset;i+=1.0f/ammount){
-			illuminateOutside(color,pos,i);
-		}
-	}
-	else{
-		for(f4 i = offset;i < 1.0f+offset;i+=1.0f/ammount){
-			illuminateInside(color,pos,i);
-		}	
-	}
 }
 
 void collision(VEC2* pos,VEC2 vel,f4 size){
@@ -466,278 +277,18 @@ void physics(){
 				particle.cnt--;
 			}
 		}
-		if(player.weaponCooldown) player.weaponCooldown--;
+		if(player.weapon_cooldown) player.weapon_cooldown--;
 		Sleep(15);
 	}
-}
-
-void drawRect(VEC2 pos,VEC2 size,VEC3 color){
-	quad.p1 = (VEC2){pos.x-size.x,pos.y-size.y};
-	quad.p2 = (VEC2){pos.x-size.x,pos.y+size.y};
-	quad.p3 = (VEC2){pos.x+size.x,pos.y-size.y};
-	quad.p4 = (VEC2){pos.x+size.x,pos.y+size.y};
-	quad.p5 = (VEC2){pos.x-size.x,pos.y+size.y};
-	quad.p6 = (VEC2){pos.x+size.x,pos.y-size.y};
-	glUniform3f(glGetUniformLocation(colorShader,"color"),color.r,color.g,color.b);
-	glBufferData(GL_ARRAY_BUFFER,24 * sizeof(float),&quad,GL_DYNAMIC_DRAW);
-	glDrawArrays(GL_TRIANGLES,0,24);
-}
-
-void drawSprite(VEC2 pos,VEC2 size,VEC2 texture_pos){
-	sprite_quad.p1 = (VEC2){pos.x-size.x,pos.y-size.y};
-	sprite_quad.p2 = (VEC2){pos.x-size.x,pos.y+size.y};
-	sprite_quad.p3 = (VEC2){pos.x+size.x,pos.y-size.y};
-	sprite_quad.p4 = (VEC2){pos.x+size.x,pos.y+size.y};
-	sprite_quad.p5 = (VEC2){pos.x-size.x,pos.y+size.y};
-	sprite_quad.p6 = (VEC2){pos.x+size.x,pos.y-size.y};
-	sprite_quad.tc1 = (VEC2){texture_pos.x     ,texture_pos.y     };
-	sprite_quad.tc2 = (VEC2){texture_pos.x     ,texture_pos.y+0.5f};
-	sprite_quad.tc3 = (VEC2){texture_pos.x+0.5f,texture_pos.y     };
-	sprite_quad.tc4 = (VEC2){texture_pos.x+0.5f,texture_pos.y+0.5f};
-	sprite_quad.tc5 = (VEC2){texture_pos.x     ,texture_pos.y+0.5f};
-	sprite_quad.tc6 = (VEC2){texture_pos.x+0.5f,texture_pos.y     };
-	glBufferData(GL_ARRAY_BUFFER,24 * sizeof(float),&sprite_quad,GL_DYNAMIC_DRAW);
-	glDrawArrays(GL_TRIANGLES,0,24);
-}
-
-void drawEnemy(VEC2 pos,VEC2 size,VEC2 texture_pos,VEC3 luminance){
-	sprite_quad.p1 = (VEC2){pos.x-size.x,pos.y-size.y};
-	sprite_quad.p2 = (VEC2){pos.x-size.x,pos.y+size.y};
-	sprite_quad.p3 = (VEC2){pos.x+size.x,pos.y-size.y};
-	sprite_quad.p4 = (VEC2){pos.x+size.x,pos.y+size.y};
-	sprite_quad.p5 = (VEC2){pos.x-size.x,pos.y+size.y};
-	sprite_quad.p6 = (VEC2){pos.x+size.x,pos.y-size.y};
-	sprite_quad.tc1 = (VEC2){texture_pos.x     ,texture_pos.y     };
-	sprite_quad.tc2 = (VEC2){texture_pos.x     ,texture_pos.y+0.5f};
-	sprite_quad.tc3 = (VEC2){texture_pos.x+0.5f,texture_pos.y     };
-	sprite_quad.tc4 = (VEC2){texture_pos.x+0.5f,texture_pos.y+0.5f};
-	sprite_quad.tc5 = (VEC2){texture_pos.x     ,texture_pos.y+0.5f};
-	sprite_quad.tc6 = (VEC2){texture_pos.x+0.5f,texture_pos.y     };
-	glUniform3f(glGetUniformLocation(enemyShader,"luminance"),luminance.r,luminance.g,luminance.b);
-	glBufferData(GL_ARRAY_BUFFER,24 * sizeof(float),&sprite_quad,GL_DYNAMIC_DRAW);
-	glDrawArrays(GL_TRIANGLES,0,24);
-}
-
-void drawMap(){
-	glUseProgram(mapShader);
-	glUniform2f(glGetUniformLocation(mapShader,"offset"),tFract(camera.pos.x)/RES,tFract(camera.pos.y)/RES);
-	glUniform2f(glGetUniformLocation(mapShader,"camera"),camera.pos.x/MAP,camera.pos.y/MAP);
-	glTexImage2D(GL_TEXTURE_2D,0,GL_RGB,camera.zoom,camera.zoom,0,GL_RGB,GL_UNSIGNED_BYTE,vram);
-	glGenerateMipmap(GL_TEXTURE_2D);
-	glBufferData(GL_ARRAY_BUFFER,24 * sizeof(float),&map_quad,GL_DYNAMIC_DRAW);
-	glDrawArrays(GL_TRIANGLES,0,24);
-}
-
-void drawLaser(VEC2 origin,VEC2 destination,VEC3 color){
-	VEC2 direction = VEC2normalizeR(VEC2subVEC2R(destination,origin));
-	VEC2rot(&direction,PI/2.0f);
-	VEC2div(&direction,512.0f);
-	quad.p1 = (VEC2){origin.x-     direction.x,origin.y-     direction.y};
-	quad.p2 = (VEC2){origin.x+     direction.x,origin.y+     direction.y};
-	quad.p3 = (VEC2){destination.x+direction.x,destination.y+direction.y};
-	quad.p4 = (VEC2){destination.x-direction.x,destination.y-direction.y};
-	quad.p5 = (VEC2){destination.x+direction.x,destination.y+direction.y};
-	quad.p6 = (VEC2){origin.x-     direction.x,origin.y-     direction.y};
-	glUniform3f(glGetUniformLocation(colorShader,"color"),color.r,color.g,color.b);
-	glBufferData(GL_ARRAY_BUFFER,24 * sizeof(float),&quad,GL_DYNAMIC_DRAW);
-	glDrawArrays(GL_TRIANGLES,0,24);
-}
-
-void drawParticle(VEC2 pos,VEC2 size,VEC3 luminance){
-	quad.p1 = (VEC2){pos.x-size.x,pos.y-size.y};
-	quad.p2 = (VEC2){pos.x-size.x,pos.y+size.y};
-	quad.p3 = (VEC2){pos.x+size.x,pos.y-size.y};
-	quad.p4 = (VEC2){pos.x+size.x,pos.y+size.y};
-	quad.p5 = (VEC2){pos.x-size.x,pos.y+size.y};
-	quad.p6 = (VEC2){pos.x+size.x,pos.y-size.y};
-	glUniform3f(glGetUniformLocation(particleShader,"luminance"),luminance.r,luminance.g,luminance.b);
-	glBufferData(GL_ARRAY_BUFFER,24 * sizeof(float),&quad,GL_DYNAMIC_DRAW);
-	glDrawArrays(GL_TRIANGLES,0,24);
-}
-
-u4 loadShader(u1* fragment,u1* vertex){
-	u1*	fragmentSource = loadFile(fragment);
-	u1* vertexSource   = loadFile(vertex);
-	u4  shaderProgram  = glCreateProgram();
-	u4  vertexShader   = glCreateShader(GL_VERTEX_SHADER);
-	u4  fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
-	glShaderSource(fragmentShader,1,(i1**)&fragmentSource,0);
-	glShaderSource(vertexShader,1,(i1**)&vertexSource,0);
-	glCompileShader(vertexShader);
-	glCompileShader(fragmentShader);
-	glAttachShader(shaderProgram,vertexShader);
-	glAttachShader(shaderProgram,fragmentShader);
-	glLinkProgram(shaderProgram);
-	HeapFree(GetProcessHeap(),0,fragmentSource);
-	HeapFree(GetProcessHeap(),0,vertexSource);
-	return shaderProgram;
 }
 
 void render(){
 	SetPixelFormat(dc,ChoosePixelFormat(dc,&pfd),&pfd);
 	wglMakeCurrent(dc,wglCreateContext(dc));
-
-	glCreateProgram		      = wglGetProcAddress("glCreateProgram");
-	glCreateShader		      = wglGetProcAddress("glCreateShader");
-	glShaderSource		      = wglGetProcAddress("glShaderSource");
-	glCompileShader		      = wglGetProcAddress("glCompileShader");
-	glAttachShader		      = wglGetProcAddress("glAttachShader");
-	glLinkProgram		      = wglGetProcAddress("glLinkProgram");
-	glUseProgram		      = wglGetProcAddress("glUseProgram");
-	glEnableVertexAttribArray = wglGetProcAddress("glEnableVertexAttribArray");
-	glVertexAttribPointer     = wglGetProcAddress("glVertexAttribPointer");
-	glBufferData           	  = wglGetProcAddress("glBufferData");
-	glCreateBuffers           = wglGetProcAddress("glCreateBuffers");
-	glBindBuffer              = wglGetProcAddress("glBindBuffer");
-	glGenerateMipmap          = wglGetProcAddress("glGenerateMipmap");
-	glGetUniformLocation      = wglGetProcAddress("glGetUniformLocation");
-	glActiveTexture           = wglGetProcAddress("glActiveTexture");
-	glUniform1i               = wglGetProcAddress("glUniform1i");
-	glUniform2f               = wglGetProcAddress("glUniform2f");
-	glUniform3f               = wglGetProcAddress("glUniform3f");
-	wglSwapIntervalEXT        = wglGetProcAddress("wglSwapIntervalEXT");
-
-	wglSwapIntervalEXT(VSYNC);
-
-	spriteShader   = loadShader("shader/sprite.frag"  ,"shader/vertex.vert");
-	mapShader      = loadShader("shader/map.frag"     ,"shader/vertex.vert");
-	enemyShader    = loadShader("shader/enemy.frag"   ,"shader/vertex.vert");
-	colorShader    = loadShader("shader/color.frag"   ,"shader/vertex.vert");
-	particleShader = loadShader("shader/particle.frag","shader/vertex.vert");
-
-	glCreateBuffers(1,&VBO);
-	glBindBuffer(GL_ARRAY_BUFFER,VBO);
-	
-	glGenTextures(1,&texture);
-	glGenTextures(1,&map_texture);
-	glGenTextures(1,&sprite_texture);
-	glBindTexture(GL_TEXTURE_2D,map_texture);
-
-	glUseProgram(mapShader);
-	glActiveTexture(GL_TEXTURE1);
-	glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_NEAREST);
-	glTexImage2D(GL_TEXTURE_2D,0,GL_R8,MAP,MAP,0,GL_RED,GL_UNSIGNED_BYTE,map);
-	glGenerateMipmap(GL_TEXTURE_2D);
-	glUniform1i(glGetUniformLocation(mapShader,"map"),1);
-
-	glBindTexture(GL_TEXTURE_2D,sprite_texture);
-	glUseProgram(enemyShader);
-	glUniform1i(glGetUniformLocation(enemyShader,"t_texture"),2);
-	glUseProgram(spriteShader);
-	glUniform1i(glGetUniformLocation(spriteShader,"t_texture"),2);
-	glActiveTexture(GL_TEXTURE2);
-	glTexImage2D(GL_TEXTURE_2D,0,GL_RGB,TEXTURE16_SIZE,TEXTURE16_SIZE,0,GL_RGB,GL_UNSIGNED_BYTE,texture16);
-	glGenerateMipmap(GL_TEXTURE_2D);
-	glActiveTexture(GL_TEXTURE0);
-
-	glBindTexture(GL_TEXTURE_2D,texture);
-	glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_NEAREST);
-
-	glEnableVertexAttribArray(0);
-	glVertexAttribPointer(0,2,GL_FLOAT,0,4 * sizeof(float),(void*)0);
-	glEnableVertexAttribArray(1);
-	glVertexAttribPointer(1,2,GL_FLOAT,0,4 * sizeof(float),(void*)(2 * sizeof(float)));
-
-	glUseProgram(colorShader);
-	drawRect((VEC2){0.1f,0.0f},(VEC2){0.03f,1.0f},(VEC3){1.0f,0.0f,0.0f});
-	SwapBuffers(dc);
-
+	openglInit();
 	for(;;){
-		if(player.pos.x - camera.zoom/2.0f - CAM_AREA > camera.pos.x){
-			camera.pos.x += player.pos.x - camera.zoom/2.0f - CAM_AREA - camera.pos.x;
-			if(camera.pos.x > RES+RES/2) worldLoadEast();
-		}
-		if(player.pos.y - camera.zoom/2.0f - CAM_AREA > camera.pos.y){
-			camera.pos.y += player.pos.y - camera.zoom/2.0f - CAM_AREA - camera.pos.y;
-			if(camera.pos.y > RES+RES/2) worldLoadNorth();
-		}
-		if(player.pos.x - camera.zoom/2.0f + CAM_AREA < camera.pos.x){
-			camera.pos.x += player.pos.x - camera.zoom/2.0f + CAM_AREA - camera.pos.x;
-			if(camera.pos.x < RES-RES/2) worldLoadWest();
-		}
-		if(player.pos.y - camera.zoom/2.0f + CAM_AREA < camera.pos.y){
-			camera.pos.y += player.pos.y - camera.zoom/2.0f + CAM_AREA - camera.pos.y;
-			if(camera.pos.y < RES-RES/2) worldLoadSouth();
-		}
-		while(gl_queue.cnt){
-			switch(gl_queue.message[--gl_queue.cnt].id){
-			case 0:{
-				glActiveTexture(GL_TEXTURE1);
-				IVEC2 p = gl_queue.message[gl_queue.cnt].pos;
-				glTexSubImage2D(GL_TEXTURE_2D,0,p.x,p.y,1,1,GL_RGB,GL_UNSIGNED_BYTE,map+p.y*MAP+p.x);
-				glActiveTexture(GL_TEXTURE0);
-				break;
-			}
-			case 1:
-				drawRect(gl_queue.message[gl_queue.cnt].rect.pos,
-					     gl_queue.message[gl_queue.cnt].rect.size,
-						 gl_queue.message[gl_queue.cnt].rect.color);
-				break;
-			}
-		}
-		for(u4 i = 0;i < MAP*MAP;i++){
-			if(map[i]==2){
-				illuminateMap((VEC3){0.02f,0.02f,0.2f},(VEC2){(f4)(i%MAP)+0.5f,(f4)(i/MAP)+0.5f},1024*4);
-			}
-		}
-		VEC2 angle = VEC2subVEC2R(getCursorPos(),VEC2subVEC2R(player.pos,camera.pos));
-		illuminateMapPart(PLAYER_LUMINANCE,player.pos,angle,128,0.15f);
-		for(u4 i = 0;i < bullet.cnt;i++){
-			illuminateMap(BULLET_LUMINANCE,bullet.state[i].pos,1024);
-		}
-		for(u4 i = 0;i < particle.cnt;i++){
-			illuminateMap(particle.state[i].color,particle.state[i].pos,1024);
-		}
-		for(u4 i = 0;i < laser.cnt;i++){
-			VEC2 normalize_pos = VEC2subVEC2R(laser.state[i].pos_dst,laser.state[i].pos_org);
-			VEC2 direction = VEC2normalizeR(normalize_pos);
-			u4 dst = VEC2length(normalize_pos);
-			VEC2 pos = laser.state[i].pos_org;
-			for(u4 j = 0;j < dst;j++){
-				illuminateMap(LASER_LUMINANCE,pos,128);
-				VEC2addVEC2(&pos,direction);
-			}
-		}
-		for(u4 i = 0;i < camera.zoom*camera.zoom;i++){
-			vram[i].r = tMinf(vramf[i].r,255.0f);
-			vram[i].g = tMinf(vramf[i].g,255.0f);
-			vram[i].b = tMinf(vramf[i].b,255.0f);
-		}
-		drawMap();
-		glUseProgram(spriteShader);
-		drawSprite(mapCrdToRenderCrd(player.pos),RD_SQUARE(PLAYER_SIZE),PLAYER_SPRITE);
-		for(u4 i = 0;i < bullet.cnt;i++){
-			drawSprite(mapCrdToRenderCrd(bullet.state[i].pos),RD_SQUARE(BULLET_SIZE),BULLET_SPRITE);
-		}
-		drawSprite(screenCrdToRenderCrd(getCursorPos()),RD_SQUARE(2.5f),CROSSHAIR_SPRITE);
-		glUseProgram(enemyShader);
-		for(u4 i = 0;i < enemy.cnt;i++){
-			VEC2 relative_pos = VEC2subVEC2R(enemy.state[i].pos,camera.pos);
-			if(relative_pos.x>0.0f&&relative_pos.x<camera.zoom&&relative_pos.y>0.0f&&relative_pos.y<camera.zoom){
-				VEC3 luminance = vramf[(u4)relative_pos.y*camera.zoom+(u4)relative_pos.x];
-				VEC3mul(&luminance,0.03f);
-				drawEnemy(mapCrdToRenderCrd(enemy.state[i].pos),RD_SQUARE(ENEMY_SIZE),ENEMY_SPRITE,luminance);
-			}
-		}
-		glUseProgram(particleShader);
-		for(u4 i = 0;i < particle.cnt;i++){
-			drawParticle(mapCrdToRenderCrd(particle.state[i].pos),RD_SQUARE(1.0f),VEC3normalizeR(particle.state[i].color));
-		}
-		glUseProgram(colorShader);
-		drawRect((VEC2){0.13f,0.0f},(VEC2){0.01f,1.0f},(VEC3){0.7f,0.0f,0.0f});
-		for(u4 i = 0;i < laser.cnt;i++){
-			drawLaser(mapCrdToRenderCrd(laser.state[i].pos_org),mapCrdToRenderCrd(laser.state[i].pos_dst),RD_LASER_LUMINANCE);
-		}
-		if(player.weaponCooldown){
-			f4 progress = 0.01f-0.01f*player.weaponCooldown/60.0f;
-			VEC2 pos = mapCrdToRenderCrd(player.pos);
-			pos.x += progress - 0.01f;
-			pos.y += 0.05f;
-			drawRect(pos,(VEC2){progress,0.005f},(VEC3){0.2f,0.5f,0.0f});
-		}
-		memset(vramf,0,sizeof(VEC3)*camera.zoom*camera.zoom);
+		opengl();
 		SwapBuffers(dc);
-		glClear(GL_COLOR_BUFFER_BIT);
 	}
 }
 
@@ -768,36 +319,7 @@ void main(){
 			map[x*MAP+y] = 0;
 		}
 	}
-	for(u4 x = 0;x < 16;x++){
-		for(u4 y = 0;y < 16;y++){
-			texture16[x*TEXTURE16_SIZE+y].r = 255 - VEC2length((VEC2){fabsf(7.5f-x),fabsf(7.5f-y)}) * 16.0f;
-			texture16[x*TEXTURE16_SIZE+y+16].g = tMaxf(255 - VEC2length((VEC2){fabsf(7.5f-x),fabsf(7.5f-y)}) * 32.0f,0);
-			
-			texture16[x*TEXTURE16_SIZE+y+TEXTURE16_SIZE*16+16].r = 127;
-			texture16[x*TEXTURE16_SIZE+y+TEXTURE16_SIZE*16+16].g = 127;
-			texture16[x*TEXTURE16_SIZE+y+TEXTURE16_SIZE*16+16].b = 127;
-		}
-	}
-	//generate crosshair
-	for(u4 i = 0;i < 16;i++){
-		texture16[i*TEXTURE16_SIZE+7+TEXTURE16_SIZE*16].r = 200;
-		texture16[i*TEXTURE16_SIZE+8+TEXTURE16_SIZE*16].r = 200;
-		texture16[7*TEXTURE16_SIZE+i+TEXTURE16_SIZE*16].r = 200;
-		texture16[8*TEXTURE16_SIZE+i+TEXTURE16_SIZE*16].r = 200;
-	}
-	//generate enemy
-	for(u4 x = 10;x < 14;x++){
-		for(u4 y = 2;y < 6;y++){
-			texture16[x*TEXTURE16_SIZE+y+TEXTURE16_SIZE*16+16].r = 255;
-			texture16[x*TEXTURE16_SIZE+y+TEXTURE16_SIZE*16+16].g = 255;
-			texture16[x*TEXTURE16_SIZE+y+TEXTURE16_SIZE*16+16].b = 255;
-
-			texture16[x*TEXTURE16_SIZE+y+TEXTURE16_SIZE*16+16+8].r = 255;
-			texture16[x*TEXTURE16_SIZE+y+TEXTURE16_SIZE*16+16+8].g = 255;
-			texture16[x*TEXTURE16_SIZE+y+TEXTURE16_SIZE*16+16+8].b = 255;
-		}
-	}
-
+	genTextures();
 	CreateThread(0,0,render,0,0,0);
 	CreateThread(0,0,physics,0,0,0);
 	while(GetMessageA(&Msg,window,0,0)){

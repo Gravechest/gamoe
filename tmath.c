@@ -1,4 +1,5 @@
 #include <intrin.h>
+
 #include "tmath.h"
 
 i4 tHash(i4 x){
@@ -50,4 +51,8 @@ f4 tMaxf(f4 p,f4 p2){
 
 f4 tMinf(f4 p,f4 p2){
 	return p < p2 ? p : p2;
+}
+
+f4 tAbsf(f4 p){
+	return p < 0.0f ? -p : p;
 }

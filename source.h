@@ -1,13 +1,13 @@
 #pragma once
 
+#include <Windows.h>
+
 #include "vec2.h"
 #include "small_types.h"
 #include "ivec2.h"
+#include "vec3.h"
 
 #pragma comment(lib,"Winmm.lib")
-#pragma comment(lib,"opengl32.lib")
-
-#define VSYNC 0
 
 #define RES 128
 #define MAP (RES*3)
@@ -16,7 +16,8 @@
 
 #define RD_CMP 0.5625f
 #define RD_CONVERT(X) (X*0.0072f)
-#define RD_SQUARE(X) (VEC2){RD_CONVERT(X)*RD_CMP,RD_CONVERT(X)}
+#define RD_GUI(X) (VEC2){RD_CONVERT(X)*RD_CMP,RD_CONVERT(X)}
+#define RD_SQUARE(X) VEC2mulR((VEC2){RD_CONVERT(X)*RD_CMP,RD_CONVERT(X)},128.0f/camera.zoom)
 
 #define LASER_LUMINANCE (VEC3){0.04f,0.005f,0.03f}
 #define RD_LASER_LUMINANCE (VEC3){LASER_LUMINANCE.r*8.0f,LASER_LUMINANCE.g*8.0f,LASER_LUMINANCE.b*8.0f}
@@ -34,26 +35,9 @@
 #define BULLET_SPRITE (VEC2){0.5f,0.0f}
 #define PLAYER_SPRITE (VEC2){0.0f,0.0f}
 
-#define ENEMY_SIZE 1.0f
+#define ENEMY_SIZE 1.7f
 
 #define CAM_AREA 0.0f
-
-#define PI 3.14159f
-
-#define GL_FRAGMENT_SHADER 0x8B30
-#define GL_VERTEX_SHADER 0x8B31
-#define GL_ARRAY_BUFFER 0x8892
-#define GL_DYNAMIC_DRAW 0x88E8
-
-#define GL_TEXTURE0 0x84C0
-#define GL_TEXTURE1 0x84C1
-#define GL_TEXTURE2 0x84C2
-#define GL_TEXTURE3 0x84C3
-#define GL_TEXTURE4 0x84C4
-#define GL_TEXTURE5 0x84C5
-#define GL_TEXTURE6 0x84C6
-
-#define GL_R8 0x8229
 
 #define PR_FRICTION 0.9f
 
@@ -69,61 +53,6 @@
 #define WNDX 1080
 #define WNDY 1920
 
-#define TEXTURE16_SIZE 32
-
-u4 (*glCreateProgram)();
-u4 (*glCreateShader)(u4 shader);
-u4 (*wglSwapIntervalEXT)(u4 status);
-
-i4 (*glGetUniformLocation)(u4 program,i1* name);
-
-void (*glShaderSource)(u4 shader,i4 count,i1** string,i4* length);
-void (*glCompileShader)(u4 shader);
-void (*glAttachShader)(u4 program,u4 shader);
-void (*glLinkProgram)(u4 program);
-void (*glUseProgram)(u4 program);
-void (*glEnableVertexAttribArray)(u4 index);
-void (*glVertexAttribPointer)(u4 index,i4 size,u4 type,u1 normalized,u4 stride,void* pointer);
-void (*glBufferData)(u4 target,u4 size,void* data,u4 usage);
-void (*glCreateBuffers)(u4 n,u4 *buffers);
-void (*glBindBuffer)(u4 target,u4 buffer);
-void (*glGetShaderInfoLog)(u4 shader,u4 maxlength,u4 *length,u1 *infolog);
-void (*glGenerateMipmap)(u4 target);
-void (*glActiveTexture)(u4 texture);
-void (*glUniform1i)(i4 loc,i4 v1);
-void (*glUniform2f)(i4 loc,f4 v1,f4 v2);
-void (*glUniform3f)(i4 loc,f4 v1,f4 v2,f4 v3);
-
-typedef struct{
-	union{
-		f4 r;
-		f4 x;
-	};
-	union{
-		f4 g;
-		f4 y;
-	};
-	union{
-		f4 b;
-		f4 z;
-	};
-}VEC3;
-
-typedef struct{
-	VEC2 p1;
-	VEC2 tc1;
-	VEC2 p2;
-	VEC2 tc2;
-	VEC2 p3;
-	VEC2 tc3;
-	VEC2 p4;
-	VEC2 tc4;
-	VEC2 p5;
-	VEC2 tc5;
-	VEC2 p6;
-	VEC2 tc6;
-}QUAD;
-
 typedef struct{
 	u1 r;
 	u1 g;
@@ -131,7 +60,7 @@ typedef struct{
 }RGB;
 
 typedef struct{
-	u4 weaponCooldown;
+	u4 weapon_cooldown;
 	u4 lightBulletCnt;
 	VEC2 vel;
 	VEC2 pos;
@@ -139,7 +68,7 @@ typedef struct{
 
 typedef struct{
 	VEC2 pos;
-	u4 zoom;
+	i4 zoom;
 }CAMERA;
 
 typedef struct{
@@ -161,24 +90,6 @@ typedef struct{
 	u4 cnt;
 	ENEMY* state;
 }ENEMYHUB;
-
-typedef struct{
-	VEC2 pos;
-	VEC2 dir;
-	VEC2 delta;
-	VEC2 side;
-
-	IVEC2 step;
-	IVEC2 roundPos;
-
-	i4 hitSide;
-}RAY2D;
-
-typedef struct{
-	VEC2 pos;
-	VEC2 size;
-	VEC3 color;
-}COLORRECT;
 
 typedef struct{
 	VEC2 pos_org;
@@ -203,23 +114,18 @@ typedef struct{
 	PARTICLE* state;
 }PARTICLEHUB;
 
-typedef struct{
-	u4 id;
-	union{
-		IVEC2 pos;
-		COLORRECT rect;
-	};
-}OPENGLMESSAGE;
-
-typedef struct{
-	u4 cnt;
-	OPENGLMESSAGE* message;
-}OPENGLQUEUE;
-
 void genMap(IVEC2 crd,u4 offset,u4 depth,f4 value);
+VEC2 getCursorPos();
+VEC2 getCursorPosMap();
 
 extern u1* map;
+extern LASERHUB  laser;
+extern PARTICLEHUB particle;
 extern BULLETHUB bullet;
 extern ENEMYHUB  enemy;
 extern PLAYER player;
 extern CAMERA camera;
+extern CAMERA camera_new;
+extern RGB*  vram;
+extern RGB* texture16;
+extern VEC3* vramf;
