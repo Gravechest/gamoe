@@ -7,6 +7,8 @@
 #pragma comment(lib,"Winmm.lib")
 #pragma comment(lib,"opengl32.lib")
 
+#define VSYNC 0
+
 #define RES 128
 #define MAP (RES*3)
 
@@ -16,7 +18,7 @@
 #define RD_CONVERT(X) (X*0.0072f)
 #define RD_SQUARE(X) (VEC2){RD_CONVERT(X)*RD_CMP,RD_CONVERT(X)}
 
-#define LASER_LUMINANCE (VEC3){0.1f,0.02f,0.07f}
+#define LASER_LUMINANCE (VEC3){0.04f,0.005f,0.03f}
 #define RD_LASER_LUMINANCE (VEC3){LASER_LUMINANCE.r*8.0f,LASER_LUMINANCE.g*8.0f,LASER_LUMINANCE.b*8.0f}
 #define ENT_LASER_LUMINANCE (VEC3){LASER_LUMINANCE.r*0.125f,LASER_LUMINANCE.g*0.125f,LASER_LUMINANCE.b*0.125f}
 
@@ -27,6 +29,7 @@
 #define PLAYER_SIZE 2.5f
 #define PLAYER_WEAPON_COOLDOWN 60
 
+#define ENEMY_SPRITE (VEC2){0.5f,0.5f}
 #define CROSSHAIR_SPRITE (VEC2){0.0f,0.5f}
 #define BULLET_SPRITE (VEC2){0.5f,0.0f}
 #define PLAYER_SPRITE (VEC2){0.0f,0.0f}
