@@ -138,6 +138,11 @@ typedef struct{
 }PLAYER;
 
 typedef struct{
+	VEC2 pos;
+	u4 zoom;
+}CAMERA;
+
+typedef struct{
 	VEC2 vel;
 	VEC2 pos;
 }BULLET;
@@ -217,4 +222,4 @@ extern u1* map;
 extern BULLETHUB bullet;
 extern ENEMYHUB  enemy;
 extern PLAYER player;
-extern VEC2 camera;
+extern CAMERA camera;

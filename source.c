@@ -48,13 +48,13 @@ VEC3* vramf;
 RGB*  vram;
 
 u1* map;
+CAMERA camera = {RES,RES,RES};
 PLAYER player = {.pos = {RES/2+RES,RES/2+RES}};
 
 BULLETHUB bullet;
 ENEMYHUB  enemy;
 LASERHUB  laser;
 PARTICLEHUB particle;
-VEC2 camera = {RES,RES};
 OPENGLQUEUE gl_queue;
 RGB* texture16;
 
@@ -145,7 +145,7 @@ f4 invSqrtf(f4 p){
 }
 
 VEC2 mapCrdToRenderCrd(VEC2 p){
-	return (VEC2){((p.x-camera.x)/(RES/2.0f/RD_CMP)-1.0f),(p.y-camera.y)/(RES/2.0f)-1.0f};
+	return (VEC2){((p.x-camera.pos.x)/(camera.zoom/2.0f/RD_CMP)-1.0f),(p.y-camera.pos.y)/(camera.zoom/2.0f)-1.0f};
 }
 
 VEC2 screenCrdToRenderCrd(VEC2 p){
@@ -219,9 +219,17 @@ i4 proc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam){
 			break;
 		}
 		break;
+	case WM_MOUSEWHEEL:{
+		i2 scroll_ammount = wParam>>16;
+		i4 zoom_adjust = scroll_ammount/30;
+		camera.zoom += zoom_adjust;
+		if(camera.zoom>RES) camera.zoom = RES;
+		VEC2sub(&camera.pos,zoom_adjust*200.0f);
+		break;
+	}
 	case WM_RBUTTONDOWN:
 		if(player.lightBulletCnt){
-			VEC2 direction = VEC2subVEC2R(getCursorPos(),VEC2subVEC2R(player.pos,camera));
+			VEC2 direction = VEC2subVEC2R(getCursorPos(),VEC2subVEC2R(player.pos,camera.pos));
 			bullet.state[bullet.cnt].pos = player.pos;
 			bullet.state[bullet.cnt++].vel = VEC2divR(VEC2normalizeR(direction),5.0f);
 			player.lightBulletCnt--;
@@ -229,7 +237,7 @@ i4 proc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam){
 		break;
 	case WM_LBUTTONDOWN:
 		if(!player.weaponCooldown){
-			VEC2 direction = VEC2subVEC2R(getCursorPos(),VEC2subVEC2R(player.pos,camera));
+			VEC2 direction = VEC2subVEC2R(getCursorPos(),VEC2subVEC2R(player.pos,camera.pos));
 			RAY2D ray = ray2dCreate(player.pos,direction);
 			while(ray.roundPos.x >= 0 && ray.roundPos.x < MAP && ray.roundPos.y >= 0 && ray.roundPos.y < MAP){
 				if(map[ray.roundPos.y*MAP+ray.roundPos.x]==1){
@@ -266,101 +274,75 @@ i4 proc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam){
 	return DefWindowProcA(hwnd,msg,wParam,lParam);
 }
 
+void illuminateOutside(VEC3 color,VEC2 pos,f4 angle){
+	VEC2 direction = (VEC2){cosf(angle*PI*2.0f),sinf(angle*PI*2.0f)};
+	if(iSquare(pos,direction,RES/2.0f)){
+		RAY2D ray = ray2dCreate(pos,direction);
+		while((ray.roundPos.x < 0 || ray.roundPos.x >= camera.zoom || ray.roundPos.y < 0 || ray.roundPos.y >= camera.zoom)){
+			IVEC2 block = {(ray.roundPos.x+(u4)camera.pos.x),(ray.roundPos.y+(u4)camera.pos.y)};
+			if(block.y*MAP+block.x<0||block.y*MAP+block.x>MAP*MAP||map[block.y*MAP+block.x]==1){
+				break;
+			}
+			ray2dIterate(&ray);
+		}
+		while(ray.roundPos.x >= 0 && ray.roundPos.x < camera.zoom && ray.roundPos.y >= 0 && ray.roundPos.y < camera.zoom){
+			if(map[(ray.roundPos.y+(u4)camera.pos.y)*MAP+(ray.roundPos.x+(u4)camera.pos.x)]==1){
+				vramf[ray.roundPos.y*(u4)camera.zoom+ray.roundPos.x].r+=color.r*4.0f;
+				vramf[ray.roundPos.y*(u4)camera.zoom+ray.roundPos.x].g+=color.g*4.0f;
+				vramf[ray.roundPos.y*(u4)camera.zoom+ray.roundPos.x].b+=color.b*4.0f;
+				break;
+			}
+			vramf[ray.roundPos.y*(u4)camera.zoom+ray.roundPos.x].r+=color.r;
+			vramf[ray.roundPos.y*(u4)camera.zoom+ray.roundPos.x].g+=color.g;
+			vramf[ray.roundPos.y*(u4)camera.zoom+ray.roundPos.x].b+=color.b;
+			ray2dIterate(&ray);
+		}
+	}
+}
+
+void illuminateInside(VEC3 color,VEC2 pos,f4 angle){
+	RAY2D ray = ray2dCreate(pos,(VEC2){cosf(angle*PI*2.0f),sinf(angle*PI*2.0f)});
+	while(ray.roundPos.x > 0.0f && ray.roundPos.x < camera.zoom && ray.roundPos.y > 0.0f && ray.roundPos.y < camera.zoom){
+		if(map[(ray.roundPos.y+(u4)camera.pos.y)*MAP+(ray.roundPos.x+(u4)camera.pos.x)]==1){
+			vramf[ray.roundPos.y*(u4)camera.zoom+ray.roundPos.x].r+=color.r*4.0f;
+			vramf[ray.roundPos.y*(u4)camera.zoom+ray.roundPos.x].g+=color.g*4.0f;
+			vramf[ray.roundPos.y*(u4)camera.zoom+ray.roundPos.x].b+=color.b*4.0f;
+			break;
+		}
+		vramf[ray.roundPos.y*(u4)camera.zoom+ray.roundPos.x].r+=color.r;
+		vramf[ray.roundPos.y*(u4)camera.zoom+ray.roundPos.x].g+=color.g;
+		vramf[ray.roundPos.y*(u4)camera.zoom+ray.roundPos.x].b+=color.b;
+		ray2dIterate(&ray);
+	}
+}
+
 void illuminateMapPart(VEC3 color,VEC2 pos,VEC2 angle,u4 ammount,f4 wideness){
 	f4 tan_angle = atan2f(angle.y,angle.x) / (PI*2.0f);
 	tan_angle -= wideness/2.0f;
-	VEC2subVEC2(&pos,(VEC2){(u4)camera.x,(u4)camera.y});
-	if(pos.x < 1.0f || pos.y < 1.0f || pos.x > RES || pos.y > RES){
+	VEC2subVEC2(&pos,(VEC2){(u4)camera.pos.x,(u4)camera.pos.y});
+	if(pos.x < 1.0f || pos.y < 1.0f || pos.x > camera.zoom || pos.y > camera.zoom){
 		for(f4 i = tan_angle;i < wideness+tan_angle;i+=wideness/ammount){
-			VEC2 direction = (VEC2){cosf(i*PI*2.0f),sinf(i*PI*2.0f)};
-			if(iSquare(pos,direction,RES/2.0f)){
-				RAY2D ray = ray2dCreate(pos,direction);
-				while((ray.roundPos.x < 0 || ray.roundPos.x >= RES || ray.roundPos.y < 0 || ray.roundPos.y >= RES)){
-					IVEC2 block = {(ray.roundPos.x+(u4)camera.x),(ray.roundPos.y+(u4)camera.y)};
-					if(block.y*MAP+block.x<0||block.y*MAP+block.x>MAP*MAP||map[block.y*MAP+block.x]==1){
-						break;
-					}
-					ray2dIterate(&ray);
-				}
-				while(ray.roundPos.x >= 0 && ray.roundPos.x < RES && ray.roundPos.y >= 0 && ray.roundPos.y < RES){
-					if(map[(ray.roundPos.y+(u4)camera.y)*MAP+(ray.roundPos.x+(u4)camera.x)]==1){
-						vramf[ray.roundPos.y*RES+ray.roundPos.x].r+=color.r*4.0f;
-						vramf[ray.roundPos.y*RES+ray.roundPos.x].g+=color.g*4.0f;
-						vramf[ray.roundPos.y*RES+ray.roundPos.x].b+=color.b*4.0f;
-						break;
-					}
-					vramf[ray.roundPos.y*RES+ray.roundPos.x].r+=color.r;
-					vramf[ray.roundPos.y*RES+ray.roundPos.x].g+=color.g;
-					vramf[ray.roundPos.y*RES+ray.roundPos.x].b+=color.b;
-					ray2dIterate(&ray);
-				}
-			}
+			illuminateOutside(color,pos,i);
 		}
 	}
 	else{
 		for(f4 i = tan_angle;i < wideness+tan_angle;i+=wideness/ammount){
-			RAY2D ray = ray2dCreate(pos,(VEC2){cosf(i*PI*2.0f),sinf(i*PI*2.0f)});
-			while(ray.roundPos.x > 0.0f && ray.roundPos.x < RES && ray.roundPos.y > 0.0f && ray.roundPos.y < RES){
-				if(map[(ray.roundPos.y+(u4)camera.y)*MAP+(ray.roundPos.x+(u4)camera.x)]==1){
-					vramf[ray.roundPos.y*RES+ray.roundPos.x].r+=color.r*4.0f;
-					vramf[ray.roundPos.y*RES+ray.roundPos.x].g+=color.g*4.0f;
-					vramf[ray.roundPos.y*RES+ray.roundPos.x].b+=color.b*4.0f;
-					break;
-				}
-				vramf[ray.roundPos.y*RES+ray.roundPos.x].r+=color.r;
-				vramf[ray.roundPos.y*RES+ray.roundPos.x].g+=color.g;
-				vramf[ray.roundPos.y*RES+ray.roundPos.x].b+=color.b;
-				ray2dIterate(&ray);
-			}
+			illuminateInside(color,pos,i);
 		}	
 	}
 }
 
 void illuminateMap(VEC3 color,VEC2 pos,u4 ammount){
-	VEC2subVEC2(&pos,(VEC2){(u4)camera.x,(u4)camera.y});
+	VEC2subVEC2(&pos,(VEC2){(u4)camera.pos.x,(u4)camera.pos.y});
 	f4 offset = tRnd();
-	if(pos.x < 1.0f || pos.y < 1.0f || pos.x > RES || pos.y > RES){
+	if(pos.x < 1.0f || pos.y < 1.0f || pos.x > camera.zoom || pos.y > camera.zoom){
 		for(f4 i = offset;i < 1.0f+offset;i+=1.0f/ammount){
-			VEC2 direction = (VEC2){cosf(i*PI*2.0f),sinf(i*PI*2.0f)};
-			if(iSquare(pos,direction,RES/2.0f)){
-				RAY2D ray = ray2dCreate(pos,direction);
-				while((ray.roundPos.x < 0 || ray.roundPos.x >= RES || ray.roundPos.y < 0 || ray.roundPos.y >= RES)){
-					IVEC2 block = {(ray.roundPos.x+(u4)camera.x),(ray.roundPos.y+(u4)camera.y)};
-					if(block.y*MAP+block.x<0||block.y*MAP+block.x>MAP*MAP||map[block.y*MAP+block.x]==1){
-						break;
-					}
-					ray2dIterate(&ray);
-				}
-				while(ray.roundPos.x >= 0 && ray.roundPos.x < RES && ray.roundPos.y >= 0 && ray.roundPos.y < RES){
-					if(map[(ray.roundPos.y+(u4)camera.y)*MAP+(ray.roundPos.x+(u4)camera.x)]==1){
-						vramf[ray.roundPos.y*RES+ray.roundPos.x].r+=color.r*4.0f;
-						vramf[ray.roundPos.y*RES+ray.roundPos.x].g+=color.g*4.0f;
-						vramf[ray.roundPos.y*RES+ray.roundPos.x].b+=color.b*4.0f;
-						break;
-					}
-					vramf[ray.roundPos.y*RES+ray.roundPos.x].r+=color.r;
-					vramf[ray.roundPos.y*RES+ray.roundPos.x].g+=color.g;
-					vramf[ray.roundPos.y*RES+ray.roundPos.x].b+=color.b;
-					ray2dIterate(&ray);
-				}
-			}
+			illuminateOutside(color,pos,i);
 		}
 	}
 	else{
 		for(f4 i = offset;i < 1.0f+offset;i+=1.0f/ammount){
-			RAY2D ray = ray2dCreate(pos,(VEC2){cosf(i*PI*2.0f),sinf(i*PI*2.0f)});
-			while(ray.roundPos.x > 0.0f && ray.roundPos.x < RES && ray.roundPos.y > 0.0f && ray.roundPos.y < RES){
-				if(map[(ray.roundPos.y+(u4)camera.y)*MAP+(ray.roundPos.x+(u4)camera.x)]==1){
-					vramf[ray.roundPos.y*RES+ray.roundPos.x].r+=color.r*4.0f;
-					vramf[ray.roundPos.y*RES+ray.roundPos.x].g+=color.g*4.0f;
-					vramf[ray.roundPos.y*RES+ray.roundPos.x].b+=color.b*4.0f;
-					break;
-				}
-				vramf[ray.roundPos.y*RES+ray.roundPos.x].r+=color.r;
-				vramf[ray.roundPos.y*RES+ray.roundPos.x].g+=color.g;
-				vramf[ray.roundPos.y*RES+ray.roundPos.x].b+=color.b;
-				ray2dIterate(&ray);
-			}
+			illuminateInside(color,pos,i);
 		}	
 	}
 }
@@ -538,9 +520,9 @@ void drawEnemy(VEC2 pos,VEC2 size,VEC2 texture_pos,VEC3 luminance){
 
 void drawMap(){
 	glUseProgram(mapShader);
-	glUniform2f(glGetUniformLocation(mapShader,"offset"),tFract(camera.x)/RES,tFract(camera.y)/RES);
-	glUniform2f(glGetUniformLocation(mapShader,"camera"),camera.x/MAP,camera.y/MAP);
-	glTexImage2D(GL_TEXTURE_2D,0,GL_RGB,RES,RES,0,GL_RGB,GL_UNSIGNED_BYTE,vram);
+	glUniform2f(glGetUniformLocation(mapShader,"offset"),tFract(camera.pos.x)/RES,tFract(camera.pos.y)/RES);
+	glUniform2f(glGetUniformLocation(mapShader,"camera"),camera.pos.x/MAP,camera.pos.y/MAP);
+	glTexImage2D(GL_TEXTURE_2D,0,GL_RGB,camera.zoom,camera.zoom,0,GL_RGB,GL_UNSIGNED_BYTE,vram);
 	glGenerateMipmap(GL_TEXTURE_2D);
 	glBufferData(GL_ARRAY_BUFFER,24 * sizeof(float),&map_quad,GL_DYNAMIC_DRAW);
 	glDrawArrays(GL_TRIANGLES,0,24);
@@ -661,21 +643,21 @@ void render(){
 	SwapBuffers(dc);
 
 	for(;;){
-		if(player.pos.x - RES/2 - CAM_AREA > camera.x){
-			camera.x += player.pos.x - RES/2 - CAM_AREA - camera.x;
-			if(camera.x > RES+RES/2) worldLoadEast();
+		if(player.pos.x - camera.zoom/2.0f - CAM_AREA > camera.pos.x){
+			camera.pos.x += player.pos.x - camera.zoom/2.0f - CAM_AREA - camera.pos.x;
+			if(camera.pos.x > RES+RES/2) worldLoadEast();
 		}
-		if(player.pos.y - RES/2 - CAM_AREA > camera.y){
-			camera.y += player.pos.y - RES/2 - CAM_AREA - camera.y;
-			if(camera.y > RES+RES/2) worldLoadNorth();
+		if(player.pos.y - camera.zoom/2.0f - CAM_AREA > camera.pos.y){
+			camera.pos.y += player.pos.y - camera.zoom/2.0f - CAM_AREA - camera.pos.y;
+			if(camera.pos.y > RES+RES/2) worldLoadNorth();
 		}
-		if(player.pos.x - RES/2 + CAM_AREA < camera.x){
-			camera.x += player.pos.x - RES/2 + CAM_AREA - camera.x;
-			if(camera.x < RES-RES/2) worldLoadWest();
+		if(player.pos.x - camera.zoom/2.0f + CAM_AREA < camera.pos.x){
+			camera.pos.x += player.pos.x - camera.zoom/2.0f + CAM_AREA - camera.pos.x;
+			if(camera.pos.x < RES-RES/2) worldLoadWest();
 		}
-		if(player.pos.y - RES/2 + CAM_AREA < camera.y){
-			camera.y += player.pos.y - RES/2 + CAM_AREA - camera.y;
-			if(camera.y < RES-RES/2) worldLoadSouth();
+		if(player.pos.y - camera.zoom/2.0f + CAM_AREA < camera.pos.y){
+			camera.pos.y += player.pos.y - camera.zoom/2.0f + CAM_AREA - camera.pos.y;
+			if(camera.pos.y < RES-RES/2) worldLoadSouth();
 		}
 		while(gl_queue.cnt){
 			switch(gl_queue.message[--gl_queue.cnt].id){
@@ -698,7 +680,7 @@ void render(){
 				illuminateMap((VEC3){0.02f,0.02f,0.2f},(VEC2){(f4)(i%MAP)+0.5f,(f4)(i/MAP)+0.5f},1024*4);
 			}
 		}
-		VEC2 angle = VEC2subVEC2R(getCursorPos(),VEC2subVEC2R(player.pos,camera));
+		VEC2 angle = VEC2subVEC2R(getCursorPos(),VEC2subVEC2R(player.pos,camera.pos));
 		illuminateMapPart(PLAYER_LUMINANCE,player.pos,angle,128,0.15f);
 		for(u4 i = 0;i < bullet.cnt;i++){
 			illuminateMap(BULLET_LUMINANCE,bullet.state[i].pos,1024);
@@ -716,7 +698,7 @@ void render(){
 				VEC2addVEC2(&pos,direction);
 			}
 		}
-		for(u4 i = 0;i < RES*RES;i++){
+		for(u4 i = 0;i < camera.zoom*camera.zoom;i++){
 			vram[i].r = tMinf(vramf[i].r,255.0f);
 			vram[i].g = tMinf(vramf[i].g,255.0f);
 			vram[i].b = tMinf(vramf[i].b,255.0f);
@@ -730,9 +712,9 @@ void render(){
 		drawSprite(screenCrdToRenderCrd(getCursorPos()),RD_SQUARE(2.5f),CROSSHAIR_SPRITE);
 		glUseProgram(enemyShader);
 		for(u4 i = 0;i < enemy.cnt;i++){
-			VEC2 relative_pos = VEC2subVEC2R(enemy.state[i].pos,camera);
-			if(relative_pos.x>0.0f&&relative_pos.x<RES&&relative_pos.y>0.0f&&relative_pos.y<RES){
-				VEC3 luminance = vramf[(u4)relative_pos.y*RES+(u4)relative_pos.x];
+			VEC2 relative_pos = VEC2subVEC2R(enemy.state[i].pos,camera.pos);
+			if(relative_pos.x>0.0f&&relative_pos.x<camera.zoom&&relative_pos.y>0.0f&&relative_pos.y<camera.zoom){
+				VEC3 luminance = vramf[(u4)relative_pos.y*camera.zoom+(u4)relative_pos.x];
 				VEC3mul(&luminance,0.03f);
 				drawEnemy(mapCrdToRenderCrd(enemy.state[i].pos),RD_SQUARE(ENEMY_SIZE),ENEMY_SPRITE,luminance);
 			}
@@ -753,7 +735,7 @@ void render(){
 			pos.y += 0.05f;
 			drawRect(pos,(VEC2){progress,0.005f},(VEC3){0.2f,0.5f,0.0f});
 		}
-		memset(vramf,0,sizeof(VEC3)*RES*RES);
+		memset(vramf,0,sizeof(VEC3)*camera.zoom*camera.zoom);
 		SwapBuffers(dc);
 		glClear(GL_COLOR_BUFFER_BIT);
 	}
