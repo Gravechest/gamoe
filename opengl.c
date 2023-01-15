@@ -1,5 +1,6 @@
 #include <windows.h>
 #include <GL/gl.h>
+#include <stdio.h>
 
 #include "opengl.h"
 #include "source.h"
@@ -10,9 +11,10 @@
 #include "chunk.h"
 
 u4 VBO;
-u4 texture,map_texture,sprite_texture;
-u4 spriteShader,mapShader,enemyShader,colorShader,particleShader;
+u4 texture,map_texture,sprite_texture,font_texture;
+u4 sprite_shader,map_shader,enemy_shader,color_shader,particle_shader,font_shader;
 OPENGLQUEUE gl_queue;
+RGB* font_texture_data;
 
 VEC2 mapCrdToRenderCrd(VEC2 p){
 	return (VEC2){((p.x-camera.pos.x)/(camera.zoom/2.0f/RD_CMP)-1.0f),(p.y-camera.pos.y)/(camera.zoom/2.0f)-1.0f};
@@ -30,6 +32,19 @@ u1* loadFile(u1* name){
 	r[fsize] = 0;
 	CloseHandle(h);
 	return r;
+}
+
+RGB* loadBMP(u1* name){
+	HANDLE h = CreateFileA(name,GENERIC_READ,0,0,OPEN_EXISTING,FILE_ATTRIBUTE_NORMAL,0);
+	u4 fsize = GetFileSize(h,0);
+	u1* text = HeapAlloc(GetProcessHeap(),8,fsize+1);
+	u4 offset;
+	SetFilePointer(h,0x0a,0,0);
+	ReadFile(h,&offset,4,0,0);
+	SetFilePointer(h,offset,0,0);
+	ReadFile(h,text,fsize-offset,0,0);
+	CloseHandle(h);
+	return text;
 }
 
 u4 loadShader(u1* fragment,u1* vertex){
@@ -56,9 +71,7 @@ void illuminateOutside(VEC3 color,VEC2 pos,f4 angle){
 		RAY2D ray = ray2dCreate(pos,direction);
 		while((ray.roundPos.x < 0 || ray.roundPos.x >= camera.zoom || ray.roundPos.y < 0 || ray.roundPos.y >= camera.zoom)){
 			IVEC2 block = {(ray.roundPos.x+(u4)camera.pos.x),(ray.roundPos.y+(u4)camera.pos.y)};
-			if(block.y*MAP+block.x<0||block.y*MAP+block.x>MAP*MAP||map[block.y*MAP+block.x]==1){
-				break;
-			}
+			if(block.y*MAP+block.x<0||block.y*MAP+block.x>MAP*MAP||map[block.y*MAP+block.x]==1) break;
 			ray2dIterate(&ray);
 		}
 		while(ray.roundPos.x >= 0 && ray.roundPos.x < camera.zoom && ray.roundPos.y >= 0 && ray.roundPos.y < camera.zoom){
@@ -146,38 +159,50 @@ void openglInit(){
 
 	wglSwapIntervalEXT(VSYNC);
 
-	spriteShader   = loadShader("shader/sprite.frag"  ,"shader/vertex.vert");
-	mapShader      = loadShader("shader/map.frag"     ,"shader/vertex.vert");
-	enemyShader    = loadShader("shader/enemy.frag"   ,"shader/vertex.vert");
-	colorShader    = loadShader("shader/color.frag"   ,"shader/vertex.vert");
-	particleShader = loadShader("shader/particle.frag","shader/vertex.vert");
+	sprite_shader   = loadShader("shader/sprite.frag"  ,"shader/vertex.vert");
+	map_shader      = loadShader("shader/map.frag"     ,"shader/vertex.vert");
+	enemy_shader    = loadShader("shader/enemy.frag"   ,"shader/vertex.vert");
+	color_shader    = loadShader("shader/color.frag"   ,"shader/vertex.vert");
+	particle_shader = loadShader("shader/particle.frag","shader/vertex.vert");
+	font_shader     = loadShader("shader/font.frag"    ,"shader/vertex.vert");
+
+	font_texture_data = loadBMP("img/font.bmp");
 
 	glCreateBuffers(1,&VBO);
 	glBindBuffer(GL_ARRAY_BUFFER,VBO);
 	
 	glGenTextures(1,&texture);
 	glGenTextures(1,&map_texture);
+	glGenTextures(1,&font_texture);
 	glGenTextures(1,&sprite_texture);
-	glBindTexture(GL_TEXTURE_2D,map_texture);
 
-	glUseProgram(mapShader);
+	glActiveTexture(GL_TEXTURE3);
+	glBindTexture(GL_TEXTURE_2D,font_texture);
+	glUseProgram(font_shader);
+	glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_NEAREST);
+	glTexImage2D(GL_TEXTURE_2D,0,GL_RGB,80,80,0,GL_RGB,GL_UNSIGNED_BYTE,font_texture_data);
+	glGenerateMipmap(GL_TEXTURE_2D);
+	glUniform1i(glGetUniformLocation(font_shader,"font_texture"),3);
+
 	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D,map_texture);
+	glUseProgram(map_shader);
 	glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_NEAREST);
 	glTexImage2D(GL_TEXTURE_2D,0,GL_R8,MAP,MAP,0,GL_RED,GL_UNSIGNED_BYTE,map);
 	glGenerateMipmap(GL_TEXTURE_2D);
-	glUniform1i(glGetUniformLocation(mapShader,"map"),1);
+	glUniform1i(glGetUniformLocation(map_shader,"map"),1);
 
-	glBindTexture(GL_TEXTURE_2D,sprite_texture);
-	glUseProgram(enemyShader);
-	glUniform1i(glGetUniformLocation(enemyShader,"t_texture"),2);
-	glUseProgram(spriteShader);
-	glUniform1i(glGetUniformLocation(spriteShader,"t_texture"),2);
 	glActiveTexture(GL_TEXTURE2);
+	glBindTexture(GL_TEXTURE_2D,sprite_texture);
+	glUseProgram(enemy_shader);
+	glUniform1i(glGetUniformLocation(enemy_shader,"t_texture"),2);
+	glUseProgram(sprite_shader);
+	glUniform1i(glGetUniformLocation(sprite_shader,"t_texture"),2);
+	glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_NEAREST);
 	glTexImage2D(GL_TEXTURE_2D,0,GL_RGB,TEXTURE16_SIZE,TEXTURE16_SIZE,0,GL_RGB,GL_UNSIGNED_BYTE,texture16);
 	glGenerateMipmap(GL_TEXTURE_2D);
+	
 	glActiveTexture(GL_TEXTURE0);
-
-	glBindTexture(GL_TEXTURE_2D,texture);
 	glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_NEAREST);
 
 	glEnableVertexAttribArray(0);
@@ -250,13 +275,13 @@ void opengl(){
 		vram[i].b = tMinf(vramf[i].b,255.0f);
 	}
 	drawMap();
-	glUseProgram(spriteShader);
+	glUseProgram(sprite_shader);
 	drawSprite(mapCrdToRenderCrd(player.pos),RD_SQUARE(PLAYER_SIZE),PLAYER_SPRITE);
 	for(u4 i = 0;i < bullet.cnt;i++){
 		drawSprite(mapCrdToRenderCrd(bullet.state[i].pos),RD_SQUARE(BULLET_SIZE),BULLET_SPRITE);
 	}
 	drawSprite(screenCrdToRenderCrd(getCursorPos()),RD_GUI(2.5f),CROSSHAIR_SPRITE);
-	glUseProgram(enemyShader);
+	glUseProgram(enemy_shader);
 	for(u4 i = 0;i < enemy.cnt;i++){
 		VEC2 relative_pos = VEC2subVEC2R(enemy.state[i].pos,camera.pos);
 		if(relative_pos.x>0.0f&&relative_pos.x<camera.zoom&&relative_pos.y>0.0f&&relative_pos.y<camera.zoom){
@@ -265,11 +290,11 @@ void opengl(){
 			drawEnemy(mapCrdToRenderCrd(enemy.state[i].pos),RD_SQUARE(ENEMY_SIZE),ENEMY_SPRITE,luminance);
 		}
 	}
-	glUseProgram(particleShader);
+	glUseProgram(particle_shader);
 	for(u4 i = 0;i < particle.cnt;i++){
 		drawParticle(mapCrdToRenderCrd(particle.state[i].pos),RD_SQUARE(1.0f),VEC3normalizeR(particle.state[i].color));
 	}
-	glUseProgram(colorShader);
+	glUseProgram(color_shader);
 	drawRect((VEC2){0.13f,0.0f},(VEC2){0.01f,1.0f},(VEC3){0.7f,0.0f,0.0f});
 	for(u4 i = 0;i < laser.cnt;i++){
 		drawLaser(mapCrdToRenderCrd(laser.state[i].pos_org),mapCrdToRenderCrd(laser.state[i].pos_dst),RD_LASER_LUMINANCE);
@@ -281,5 +306,13 @@ void opengl(){
 		pos.y += 0.05f;
 		drawRect(pos,(VEC2){progress,0.005f},(VEC3){0.2f,0.5f,0.0f});
 	}
+	//drawString((VEC2){0.0f,0.0f},(VEC2){0.1f,0.1f},);
+	glActiveTexture(GL_TEXTURE3);
+	glUseProgram(font_shader);
+	drawString((VEC2){0.3f,0.5f},RD_GUI(3.0f),"#include <stdio.h>");
+	drawString((VEC2){0.3f,0.4f},RD_GUI(3.0f),"void main(){");
+	drawString((VEC2){0.4f,0.3f},RD_GUI(3.0f),"printf(\"hello world!\");");
+	drawString((VEC2){0.4f,0.2f},RD_GUI(3.0f),"return 0;");
+	drawString((VEC2){0.3f,0.1f},RD_GUI(3.0f),"}");
 	memset(vramf,0,sizeof(VEC3)*camera.zoom*camera.zoom);
 }

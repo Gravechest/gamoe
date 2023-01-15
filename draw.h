@@ -26,3 +26,4 @@ void drawMap();
 void drawLaser(VEC2 origin,VEC2 destination,VEC3 color);
 void drawParticle(VEC2 pos,VEC2 size,VEC3 luminance);
 void drawRect(VEC2 pos,VEC2 size,VEC3 color);
+void drawString(VEC2 pos,VEC2 size,u1* string);

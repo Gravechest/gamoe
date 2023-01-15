@@ -7,7 +7,12 @@
 #include "vec3.h"
 #include "ivec2.h"
 
-#define VSYNC 0
+#define VSYNC 1
+
+#define RD_CMP 0.5625f
+#define RD_CONVERT(X) (X*0.0072f)
+#define RD_GUI(X) (VEC2){RD_CONVERT(X)*RD_CMP,RD_CONVERT(X)}
+#define RD_SQUARE(X) VEC2mulR((VEC2){RD_CONVERT(X)*RD_CMP,RD_CONVERT(X)},128.0f/camera.zoom)
 
 #define GL_ARRAY_BUFFER 0x8892
 
@@ -69,5 +74,5 @@ void (*glUniform3f)(i4 loc,f4 v1,f4 v2,f4 v3);
 void openglInit();
 void opengl();
 
-extern u4 spriteShader,mapShader,enemyShader,colorShader,particleShader;
+extern u4 sprite_shader,map_shader,enemy_shader,color_shader,particle_shader;
 extern OPENGLQUEUE gl_queue;

@@ -314,6 +314,7 @@ void main(){
 			genMap((IVEC2){0,0},x+y,7,-1.0f);
 		}
 	}
+	//make sure the spawnarea is clean
 	for(u4 x = player.pos.x - 3.0f;x < player.pos.x + 3.0f;x++){
 		for(u4 y = player.pos.y - 3.0f;y < player.pos.y + 3.0f;y++){
 			map[x*MAP+y] = 0;
@@ -327,3 +328,4 @@ void main(){
 		DispatchMessageA(&Msg);
 	}
 }
+
