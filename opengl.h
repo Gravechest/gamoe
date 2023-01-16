@@ -7,7 +7,14 @@
 #include "vec3.h"
 #include "ivec2.h"
 
+#define BLOCK_AIR    0
+#define BLOCK_NORMAL 1
+#define BLOCK_LIGHT  2
+#define BLOCK_ENTITY 3
+
 #define VSYNC 1
+
+#define GUI_ENERGY (VEC2){0.18f,0.9f}
 
 #define RD_CMP 0.5625f
 #define RD_CONVERT(X) (X*0.0072f)

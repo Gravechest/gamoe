@@ -1,6 +1,7 @@
 #include <windows.h>
 #include <GL/gl.h>
 #include <stdio.h>
+#include <math.h>
 
 #include "opengl.h"
 #include "source.h"
@@ -9,12 +10,16 @@
 #include "tmath.h"
 #include "ray.h"
 #include "chunk.h"
+#include "ivec2.h"
 
 u4 VBO;
 u4 texture,map_texture,sprite_texture,font_texture;
 u4 sprite_shader,map_shader,enemy_shader,color_shader,particle_shader,font_shader;
 OPENGLQUEUE gl_queue;
 RGB* font_texture_data;
+
+u4 entity_shadows_cnt;
+IVEC2 entity_shadows[255];
 
 VEC2 mapCrdToRenderCrd(VEC2 p){
 	return (VEC2){((p.x-camera.pos.x)/(camera.zoom/2.0f/RD_CMP)-1.0f),(p.y-camera.pos.y)/(camera.zoom/2.0f)-1.0f};
@@ -67,41 +72,71 @@ u4 loadShader(u1* fragment,u1* vertex){
 
 void illuminateOutside(VEC3 color,VEC2 pos,f4 angle){
 	VEC2 direction = (VEC2){cosf(angle*PI*2.0f),sinf(angle*PI*2.0f)};
-	if(iSquare(pos,direction,RES/2.0f)){
+	if(iSquare(VEC2subR(pos,RES/2.0f),direction,RES/2.0f)){
 		RAY2D ray = ray2dCreate(pos,direction);
 		while((ray.roundPos.x < 0 || ray.roundPos.x >= camera.zoom || ray.roundPos.y < 0 || ray.roundPos.y >= camera.zoom)){
 			IVEC2 block = {(ray.roundPos.x+(u4)camera.pos.x),(ray.roundPos.y+(u4)camera.pos.y)};
-			if(block.y*MAP+block.x<0||block.y*MAP+block.x>MAP*MAP||map[block.y*MAP+block.x]==1) break;
+			if(block.x>MAP||block.y>MAP||block.x<0||block.y<0||map[block.y*MAP+block.x]==BLOCK_AIR) break;
 			ray2dIterate(&ray);
 		}
 		while(ray.roundPos.x >= 0 && ray.roundPos.x < camera.zoom && ray.roundPos.y >= 0 && ray.roundPos.y < camera.zoom){
-			if(map[(ray.roundPos.y+(u4)camera.pos.y)*MAP+(ray.roundPos.x+(u4)camera.pos.x)]==1){
-				vramf[ray.roundPos.y*(u4)camera.zoom+ray.roundPos.x].r+=color.r*4.0f;
-				vramf[ray.roundPos.y*(u4)camera.zoom+ray.roundPos.x].g+=color.g*4.0f;
-				vramf[ray.roundPos.y*(u4)camera.zoom+ray.roundPos.x].b+=color.b*4.0f;
+			ray2dIterate(&ray);
+			switch(map[(ray.roundPos.y+(u4)camera.pos.y)*MAP+(ray.roundPos.x+(u4)camera.pos.x)]){
+			case BLOCK_ENTITY:
+				vramf[ray.roundPos.y*camera.zoom+ray.roundPos.x].r+=color.r;
+				vramf[ray.roundPos.y*camera.zoom+ray.roundPos.x].g+=color.g;
+				vramf[ray.roundPos.y*camera.zoom+ray.roundPos.x].b+=color.b;
+				for(u4 i = 0;i < enemy.cnt;i++){
+					if(iSquare(VEC2subVEC2R(VEC2addVEC2R(pos,camera.pos),enemy.state[i].pos),ray.dir,ENEMY_SIZE*0.5)){
+						ray.roundPos.x = -1;
+						break;
+					}
+				}
+				break;
+			case BLOCK_AIR:
+				vramf[ray.roundPos.y*camera.zoom+ray.roundPos.x].r+=color.r;
+				vramf[ray.roundPos.y*camera.zoom+ray.roundPos.x].g+=color.g;
+				vramf[ray.roundPos.y*camera.zoom+ray.roundPos.x].b+=color.b;
+				break;
+			case BLOCK_NORMAL:
+				vramf[ray.roundPos.y*camera.zoom+ray.roundPos.x].r+=color.r*4.0f;
+				vramf[ray.roundPos.y*camera.zoom+ray.roundPos.x].g+=color.g*4.0f;
+				vramf[ray.roundPos.y*camera.zoom+ray.roundPos.x].b+=color.b*4.0f;
+				ray.roundPos.y = -1;
 				break;
 			}
-			vramf[ray.roundPos.y*(u4)camera.zoom+ray.roundPos.x].r+=color.r;
-			vramf[ray.roundPos.y*(u4)camera.zoom+ray.roundPos.x].g+=color.g;
-			vramf[ray.roundPos.y*(u4)camera.zoom+ray.roundPos.x].b+=color.b;
-			ray2dIterate(&ray);
 		}
 	}
 }
 
 void illuminateInside(VEC3 color,VEC2 pos,f4 angle){
 	RAY2D ray = ray2dCreate(pos,(VEC2){cosf(angle*PI*2.0f),sinf(angle*PI*2.0f)});
-	while(ray.roundPos.x > 0.0f && ray.roundPos.x < camera.zoom && ray.roundPos.y > 0.0f && ray.roundPos.y < camera.zoom){
-		if(map[(ray.roundPos.y+(u4)camera.pos.y)*MAP+(ray.roundPos.x+(u4)camera.pos.x)]==1){
-			vramf[ray.roundPos.y*(u4)camera.zoom+ray.roundPos.x].r+=color.r*4.0f;
-			vramf[ray.roundPos.y*(u4)camera.zoom+ray.roundPos.x].g+=color.g*4.0f;
-			vramf[ray.roundPos.y*(u4)camera.zoom+ray.roundPos.x].b+=color.b*4.0f;
+	while(ray.roundPos.x > 0 && ray.roundPos.x < camera.zoom && ray.roundPos.y > 0 && ray.roundPos.y < camera.zoom){
+		ray2dIterate(&ray);
+		switch(map[(ray.roundPos.y+(u4)camera.pos.y)*MAP+(ray.roundPos.x+(u4)camera.pos.x)]){
+		case BLOCK_ENTITY:
+			vramf[ray.roundPos.y*camera.zoom+ray.roundPos.x].r+=color.r;
+			vramf[ray.roundPos.y*camera.zoom+ray.roundPos.x].g+=color.g;
+			vramf[ray.roundPos.y*camera.zoom+ray.roundPos.x].b+=color.b;
+			for(u4 i = 0;i < enemy.cnt;i++){
+				if(iSquare(VEC2subVEC2R(VEC2addVEC2R(pos,camera.pos),enemy.state[i].pos),ray.dir,ENEMY_SIZE*0.5)){
+					ray.roundPos.x = -1;
+					break;
+				}
+			}
+			break;
+		case BLOCK_AIR:
+			vramf[ray.roundPos.y*camera.zoom+ray.roundPos.x].r+=color.r;
+			vramf[ray.roundPos.y*camera.zoom+ray.roundPos.x].g+=color.g;
+			vramf[ray.roundPos.y*camera.zoom+ray.roundPos.x].b+=color.b;
+			break;
+		case BLOCK_NORMAL:
+			vramf[ray.roundPos.y*camera.zoom+ray.roundPos.x].r+=color.r*4.0f;
+			vramf[ray.roundPos.y*camera.zoom+ray.roundPos.x].g+=color.g*4.0f;
+			vramf[ray.roundPos.y*camera.zoom+ray.roundPos.x].b+=color.b*4.0f;
+			ray.roundPos.y = -1;
 			break;
 		}
-		vramf[ray.roundPos.y*(u4)camera.zoom+ray.roundPos.x].r+=color.r;
-		vramf[ray.roundPos.y*(u4)camera.zoom+ray.roundPos.x].g+=color.g;
-		vramf[ray.roundPos.y*(u4)camera.zoom+ray.roundPos.x].b+=color.b;
-		ray2dIterate(&ray);
 	}
 }
 
@@ -176,6 +211,9 @@ void openglInit(){
 	glGenTextures(1,&font_texture);
 	glGenTextures(1,&sprite_texture);
 
+	glActiveTexture(GL_TEXTURE0);
+	glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_NEAREST);
+
 	glActiveTexture(GL_TEXTURE3);
 	glBindTexture(GL_TEXTURE_2D,font_texture);
 	glUseProgram(font_shader);
@@ -183,6 +221,7 @@ void openglInit(){
 	glTexImage2D(GL_TEXTURE_2D,0,GL_RGB,80,80,0,GL_RGB,GL_UNSIGNED_BYTE,font_texture_data);
 	glGenerateMipmap(GL_TEXTURE_2D);
 	glUniform1i(glGetUniformLocation(font_shader,"font_texture"),3);
+	HeapFree(GetProcessHeap(),0,font_texture_data);
 
 	glActiveTexture(GL_TEXTURE1);
 	glBindTexture(GL_TEXTURE_2D,map_texture);
@@ -201,9 +240,7 @@ void openglInit(){
 	glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_NEAREST);
 	glTexImage2D(GL_TEXTURE_2D,0,GL_RGB,TEXTURE16_SIZE,TEXTURE16_SIZE,0,GL_RGB,GL_UNSIGNED_BYTE,texture16);
 	glGenerateMipmap(GL_TEXTURE_2D);
-	
-	glActiveTexture(GL_TEXTURE0);
-	glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_NEAREST);
+	HeapFree(GetProcessHeap(),0,texture16);
 
 	glEnableVertexAttribArray(0);
 	glVertexAttribPointer(0,2,GL_FLOAT,0,4 * sizeof(float),(void*)0);
@@ -246,6 +283,18 @@ void opengl(){
 			break;
 		}
 	}
+	entity_shadows_cnt = 0;
+	for(u4 i = 0;i < enemy.cnt;i++){
+		f4 dv = ENEMY_SIZE/(u4)(ENEMY_SIZE+1);
+		for(f4 x = enemy.state[i].pos.x-ENEMY_SIZE*0.5f;x <= enemy.state[i].pos.x+ENEMY_SIZE*0.5f;x+=dv){
+			for(f4 y = enemy.state[i].pos.y-ENEMY_SIZE*0.5f;y <= enemy.state[i].pos.y+ENEMY_SIZE*0.5f;y+=dv){
+				if(map[(u4)y*MAP+(u4)x]==BLOCK_AIR){
+					map[(u4)y*MAP+(u4)x] = BLOCK_ENTITY;
+					entity_shadows[entity_shadows_cnt++] = (IVEC2){x,y};
+				}
+			}
+		}
+	}
 	for(u4 i = 0;i < MAP*MAP;i++){
 		if(map[i]==2){
 			illuminateMap((VEC3){0.02f,0.02f,0.2f},(VEC2){(f4)(i%MAP)+0.5f,(f4)(i/MAP)+0.5f},1024*4);
@@ -269,6 +318,9 @@ void opengl(){
 			VEC2addVEC2(&pos,direction);
 		}
 	}
+	for(u4 i = 0;i < entity_shadows_cnt;i++){
+		map[entity_shadows[i].y*MAP+entity_shadows[i].x] = BLOCK_AIR;
+	}
 	for(u4 i = 0;i < camera.zoom*camera.zoom;i++){
 		vram[i].r = tMinf(vramf[i].r,255.0f);
 		vram[i].g = tMinf(vramf[i].g,255.0f);
@@ -285,8 +337,12 @@ void opengl(){
 	for(u4 i = 0;i < enemy.cnt;i++){
 		VEC2 relative_pos = VEC2subVEC2R(enemy.state[i].pos,camera.pos);
 		if(relative_pos.x>0.0f&&relative_pos.x<camera.zoom&&relative_pos.y>0.0f&&relative_pos.y<camera.zoom){
-			VEC3 luminance = vramf[(u4)relative_pos.y*camera.zoom+(u4)relative_pos.x];
-			VEC3mul(&luminance,0.03f);
+			VEC3 luminance = {0.0f,0.0f,0.0f};
+			VEC3addVEC3(&luminance,vramf[(u4)(relative_pos.y+ENEMY_SIZE*0.5f)*camera.zoom+(u4)(relative_pos.x+ENEMY_SIZE*0.5f)]);
+			VEC3addVEC3(&luminance,vramf[(u4)(relative_pos.y-ENEMY_SIZE*0.5f)*camera.zoom+(u4)(relative_pos.x+ENEMY_SIZE*0.5f)]);
+			VEC3addVEC3(&luminance,vramf[(u4)(relative_pos.y+ENEMY_SIZE*0.5f)*camera.zoom+(u4)(relative_pos.x-ENEMY_SIZE*0.5f)]);
+			VEC3addVEC3(&luminance,vramf[(u4)(relative_pos.y-ENEMY_SIZE*0.5f)*camera.zoom+(u4)(relative_pos.x-ENEMY_SIZE*0.5f)]);
+			VEC3mul(&luminance,0.008f);
 			drawEnemy(mapCrdToRenderCrd(enemy.state[i].pos),RD_SQUARE(ENEMY_SIZE),ENEMY_SPRITE,luminance);
 		}
 	}
@@ -306,13 +362,9 @@ void opengl(){
 		pos.y += 0.05f;
 		drawRect(pos,(VEC2){progress,0.005f},(VEC3){0.2f,0.5f,0.0f});
 	}
-	//drawString((VEC2){0.0f,0.0f},(VEC2){0.1f,0.1f},);
+	drawRect((VEC2){GUI_ENERGY.x+0.16f+player.energy/5.0f,GUI_ENERGY.y},(VEC2){player.energy/5.0f,0.05f},(VEC3){0.2f,0.5f,0.0f});
 	glActiveTexture(GL_TEXTURE3);
 	glUseProgram(font_shader);
-	drawString((VEC2){0.3f,0.5f},RD_GUI(3.0f),"#include <stdio.h>");
-	drawString((VEC2){0.3f,0.4f},RD_GUI(3.0f),"void main(){");
-	drawString((VEC2){0.4f,0.3f},RD_GUI(3.0f),"printf(\"hello world!\");");
-	drawString((VEC2){0.4f,0.2f},RD_GUI(3.0f),"return 0;");
-	drawString((VEC2){0.3f,0.1f},RD_GUI(3.0f),"}");
+	drawString(GUI_ENERGY,RD_GUI(2.5f),"energy=");
 	memset(vramf,0,sizeof(VEC3)*camera.zoom*camera.zoom);
 }

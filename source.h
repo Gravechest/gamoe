@@ -1,7 +1,5 @@
 #pragma once
 
-#include <Windows.h>
-
 #include "vec2.h"
 #include "small_types.h"
 #include "ivec2.h"
@@ -21,7 +19,7 @@
 #define BULLET_LUMINANCE (VEC3){0.1f,0.3f,0.1f}
 #define BULLET_SIZE 1.0f
 
-#define PLAYER_LUMINANCE (VEC3){0.2f,0.02f,0.02f}
+#define PLAYER_LUMINANCE (VEC3){2.0f,0.02f,0.02f}
 #define PLAYER_SIZE 2.5f
 #define PLAYER_WEAPON_COOLDOWN 60
 
@@ -55,6 +53,7 @@ typedef struct{
 }RGB;
 
 typedef struct{
+	f4 energy;
 	u4 weapon_cooldown;
 	u4 lightBulletCnt;
 	VEC2 vel;
@@ -112,6 +111,7 @@ typedef struct{
 void genMap(IVEC2 crd,u4 offset,u4 depth,f4 value);
 VEC2 getCursorPos();
 VEC2 getCursorPosMap();
+u1 iSquare(VEC2 ro,VEC2 rd,f4 size);
 
 extern u1* map;
 extern LASERHUB  laser;

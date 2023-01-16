@@ -1,3 +1,4 @@
+#include <Windows.h>
 #include <intrin.h>
 #include <stdio.h>
 #include <math.h>
@@ -25,11 +26,11 @@ MSG Msg;
 
 VEC3* vramf;
 RGB*  vram;
-
 u1* map;
+
 CAMERA camera = {RES,RES,RES};
 CAMERA camera_new = {RES,RES,RES};
-PLAYER player = {.pos = {RES/2+RES,RES/2+RES}};
+PLAYER player = {.pos = {RES/2+RES,RES/2+RES},.energy = 1.0f};
 
 BULLETHUB bullet;
 ENEMYHUB  enemy;
@@ -53,7 +54,6 @@ void genMap(IVEC2 crd,u4 offset,u4 depth,f4 value){
 }
 
 u1 iSquare(VEC2 ro,VEC2 rd,f4 size){
-	VEC2sub(&ro,size);
 	VEC2 delta = VEC2divFR(rd,1.0f);
 	VEC2 n = VEC2mulVEC2R(delta,ro);
 	VEC2 k = VEC2mulR(VEC2absR(delta),size);
@@ -83,9 +83,7 @@ VEC2 getCursorPosMap(){
 u1 lineOfSight(VEC2 pos,VEC2 dir,u4 iterations){
 	RAY2D ray = ray2dCreate(pos,dir);
 	for(u4 i = 0;i < iterations;i++){
-		if(map[(u4)(ray.roundPos.y)*MAP+(u4)(ray.roundPos.x)]){
-			return 0;	
-		}
+		if(map[(u4)(ray.roundPos.y)*MAP+(u4)(ray.roundPos.x)]==BLOCK_NORMAL) return 0;
 		ray2dIterate(&ray);
 	}
 	return 1;
@@ -128,7 +126,7 @@ i4 proc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam){
 				ray2dIterate(&ray);
 			}
 			for(u4 i = 0;i < enemy.cnt;i++){
-				if(iSquare(VEC2subVEC2R(player.pos,enemy.state[i].pos),direction,ENEMY_SIZE)){
+				if(iSquare(VEC2subVEC2R(player.pos,enemy.state[i].pos),direction,ENEMY_SIZE/2.0f)){
 					u4 iterations = (u4)tAbsf(player.pos.x-enemy.state[i].pos.x)+(u4)tAbsf(player.pos.y-enemy.state[i].pos.y);
 					if(lineOfSight(player.pos,direction,iterations)){
 						f4 dst = VEC2length(VEC2subVEC2R(player.pos,enemy.state[i].pos));
@@ -163,7 +161,7 @@ void collision(VEC2* pos,VEC2 vel,f4 size){
 	while(inc > 1.0f) inc *= 0.5f;
 	if(vel.x < 0.0f){
 		for(f4 i = pos->y - size;i <= pos->y + size;i+=inc){
-			if(map[(u4)i*MAP+(u4)(pos->x-size)]){
+			if(map[(u4)i*MAP+(u4)(pos->x-size)] == BLOCK_NORMAL){
 				pos->x -= vel.x;
 				vel.x = 0.0f;
 				break;
@@ -172,7 +170,7 @@ void collision(VEC2* pos,VEC2 vel,f4 size){
 	}
 	else{
 		for(f4 i = pos->y - size;i <= pos->y + size;i+=inc){
-			if(map[(u4)i*MAP+(u4)(pos->x+size)]){
+			if(map[(u4)i*MAP+(u4)(pos->x+size)] == BLOCK_NORMAL){
 				pos->x -= vel.x;
 				vel.x = 0.0f;
 				break;
@@ -181,7 +179,7 @@ void collision(VEC2* pos,VEC2 vel,f4 size){
 	}
 	if(vel.y < 0.0f){
 		for(f4 i = pos->x - size;i <= pos->x + size;i+=inc){
-			if(map[(u4)(pos->y-size)*MAP+(u4)i]){
+			if(map[(u4)(pos->y-size)*MAP+(u4)i] == BLOCK_NORMAL){
 				pos->y -= vel.y;
 				vel.y = 0.0f;
 				break;
@@ -190,7 +188,7 @@ void collision(VEC2* pos,VEC2 vel,f4 size){
 	}
 	else{
 		for(f4 i = pos->x - size;i <= pos->x + size;i+=inc){
-			if(map[(u4)(pos->y+size)*MAP+(u4)i]){
+			if(map[(u4)(pos->y+size)*MAP+(u4)i] == BLOCK_NORMAL){
 				pos->y -= vel.y;
 				vel.y = 0.0f;
 				break;
@@ -224,17 +222,10 @@ void physics(){
 		VEC2addVEC2(&player.pos,player.vel);
 		collision(&player.pos,player.vel,PLAYER_SIZE/2.0f);
 		VEC2mul(&player.vel,PR_FRICTION);
-		if(tRnd()<1.02f && enemy.cnt < 8){
+		if(tRnd()<1.02f && enemy.cnt < 16){
 			enemy.state[enemy.cnt++].pos = (VEC2){tRnd()*RES,tRnd()*RES};
-		}
+		}/*
 		for(u4 i = 0;i < enemy.cnt;i++){
-			if(enemy.state[i].pos.x < 1.0f || enemy.state[i].pos.x > RES*3-1.0f ||
-			enemy.state[i].pos.y < 1.0f || enemy.state[i].pos.y > RES*3-1.0f){
-				for(u4 j = i;j < enemy.cnt;j++) enemy.state[j] = enemy.state[j+1];
-				enemy.cnt--;
-				i--;
-				continue;
-			}
 			u4 iterations = (u4)fabsf(player.pos.x-enemy.state[i].pos.x)+(u4)fabsf(player.pos.y-enemy.state[i].pos.y);
 			VEC2 toPlayer = VEC2normalizeR(VEC2subVEC2R(player.pos,enemy.state[i].pos));
 			if(lineOfSight(enemy.state[i].pos,toPlayer,iterations)){
@@ -247,7 +238,13 @@ void physics(){
 			VEC2addVEC2(&enemy.state[i].pos,enemy.state[i].vel);
 			collision(&enemy.state[i].pos,enemy.state[i].vel,ENEMY_SIZE/2.0f);
 			VEC2mul(&enemy.state[i].vel,PR_FRICTION);	
-		}
+			if(enemy.state[i].pos.x < ENEMY_SIZE || enemy.state[i].pos.x > MAP-ENEMY_SIZE-1.0f ||
+			enemy.state[i].pos.y < ENEMY_SIZE || enemy.state[i].pos.y > MAP-ENEMY_SIZE-1.0f){
+				for(u4 j = i--;j < enemy.cnt;j++) enemy.state[j] = enemy.state[j+1];
+				enemy.cnt--;
+				continue;
+			}
+		}*/
 		for(u4 i = 0;i < bullet.cnt;i++){
 			VEC2addVEC2(&bullet.state[i].pos,bullet.state[i].vel);
 			if(bullet.state[i].pos.x < 0.0f || bullet.state[i].pos.x > MAP ||

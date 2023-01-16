@@ -74,6 +74,10 @@ void VEC2mul(VEC2* p,f4 m){
 	p->y *= m;
 }
 
+VEC2 VEC2subR(VEC2 p,f4 s){
+	return (VEC2){p.x-s,p.y-s};
+}
+
 void VEC2rot(VEC2* p,f4 rot){
     f4 b = cosf(rot) * p->x - sinf(rot) * p->y;
     p->y = sinf(rot) * p->x + cosf(rot) * p->y;

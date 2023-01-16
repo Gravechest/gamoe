@@ -85,14 +85,30 @@ void loadChunk(IVEC2 crd){
 	}
 }
 
+void moveEntities(f4 direction,u4 axis){
+	camera.pos.a[axis] += direction;
+	player.pos.a[axis] += direction;
+	for(u4 i = 0;i < enemy.cnt;i++){
+		enemy.state[i].pos.a[axis] += direction;
+		if(enemy.state[i].pos.a[axis] < ENEMY_SIZE || enemy.state[i].pos.a[axis] > MAP-ENEMY_SIZE-1.0f){
+			for(u4 j = i--;j < enemy.cnt;j++) enemy.state[j] = enemy.state[j+1];
+			enemy.cnt--;
+		}
+	}
+	for(u4 i = 0;i < bullet.cnt;i++){
+		bullet.state[i].pos.a[axis] -= direction;
+		if(bullet.state[i].pos.a[axis] < BULLET_SIZE){
+			for(u4 j = i--;j < bullet.cnt;j++) bullet.state[j] = bullet.state[j+1];
+			bullet.cnt--;
+		}
+	}
+}
+
 void worldLoadEast(){
 	for(i4 i = chunkPointer.y-1;i <= chunkPointer.y+1;i++){
 		storeChunk((IVEC2){chunkPointer.x-1,i});
 	}
-	camera.pos.x -= RES;
-	player.pos.x -= RES;
-	for(u4 i = 0;i < enemy.cnt;i++) enemy.state[i].pos.x -= RES;
-	for(u4 i = 0;i < bullet.cnt;i++) bullet.state[i].pos.x -= RES;
+	moveEntities(-RES,VEC2_X);
 	for(u4 x = 0;x < MAP;x++){
 		for(u4 y = 0;y < RES*2;y++){
 			map[x*MAP+y] = map[x*MAP+y+RES];
@@ -106,10 +122,7 @@ void worldLoadWest(){
 	for(i4 i = chunkPointer.y-1;i <= chunkPointer.y+1;i++){
 		storeChunk((IVEC2){chunkPointer.x+1,i});
 	}
-	camera.pos.x += RES;
-	player.pos.x += RES;
-	for(u4 i = 0;i < enemy.cnt;i++) enemy.state[i].pos.x += RES;
-	for(u4 i = 0;i < bullet.cnt;i++) bullet.state[i].pos.x += RES;
+	moveEntities(RES,VEC2_X);
 	for(i4 x = MAP-1;x >= 0;x--){
 		for(i4 y = RES*2-1;y >= 0;y--){
 			map[x*MAP+y+RES] = map[x*MAP+y];
@@ -123,12 +136,9 @@ void worldLoadNorth(){
 	for(i4 i = chunkPointer.x-1;i <= chunkPointer.x+1;i++){
 		storeChunk((IVEC2){i,chunkPointer.y-1});
 	}
-	camera.pos.y -= RES;
-	player.pos.y -= RES;
+	moveEntities(-RES,VEC2_Y);
 	memcpy(map,map+MAP*RES,MAP*RES);
 	memcpy(map+MAP*RES,map+MAP*RES*2,MAP*RES);
-	for(u4 i = 0;i < enemy.cnt;i++) enemy.state[i].pos.y -= RES;
-	for(u4 i = 0;i < bullet.cnt;i++) bullet.state[i].pos.y -= RES;
 	chunkPointer.y++;
 	for(i4 x = -1;x <= 1;x++) loadChunk((IVEC2){x,1});
 }
@@ -137,10 +147,7 @@ void worldLoadSouth(){
 	for(i4 i = chunkPointer.x-1;i <= chunkPointer.x+1;i++){
 		storeChunk((IVEC2){i,chunkPointer.y+1});
 	}
-	camera.pos.y += RES;
-	player.pos.y += RES;
-	for(u4 i = 0;i < enemy.cnt;i++) enemy.state[i].pos.y += RES;
-	for(u4 i = 0;i < bullet.cnt;i++) bullet.state[i].pos.y += RES;
+	moveEntities(RES,VEC2_Y);
 	memcpy(map+MAP*RES*2,map+MAP*RES,MAP*RES);
 	memcpy(map+MAP*RES,map,MAP*RES);
 	chunkPointer.y--;
