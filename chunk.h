@@ -22,3 +22,4 @@ void worldLoadNorth();
 void worldLoadSouth();
 
 extern CHUNKHUB chunk;
+extern IVEC2 current_chunk;

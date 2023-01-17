@@ -86,7 +86,8 @@ void drawEnemy(VEC2 pos,VEC2 size,VEC2 texture_pos,VEC3 luminance){
 void drawMap(){
 	glUseProgram(map_shader);
 	glUniform2f(glGetUniformLocation(map_shader,"offset"),tFract(camera.pos.x)/camera.zoom,tFract(camera.pos.y)/camera.zoom);
-	glUniform2f(glGetUniformLocation(map_shader,"camera"),camera.pos.x/MAP,camera.pos.y/MAP);
+	glUniform2f(glGetUniformLocation(map_shader,"camera"),(u4)camera.pos.x,(u4)camera.pos.y);
+	glUniform1f(glGetUniformLocation(map_shader,"zoom"),camera.zoom);
 	glActiveTexture(GL_TEXTURE0);
 	glTexImage2D(GL_TEXTURE_2D,0,GL_RGB,camera.zoom,camera.zoom,0,GL_RGB,GL_UNSIGNED_BYTE,vram);
 	glGenerateMipmap(GL_TEXTURE_2D);

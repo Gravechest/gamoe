@@ -70,48 +70,8 @@ u4 loadShader(u1* fragment,u1* vertex){
 	return shaderProgram;
 }
 
-void illuminateOutside(VEC3 color,VEC2 pos,f4 angle){
-	VEC2 direction = (VEC2){cosf(angle*PI*2.0f),sinf(angle*PI*2.0f)};
-	if(iSquare(VEC2subR(pos,RES/2.0f),direction,RES/2.0f)){
-		RAY2D ray = ray2dCreate(pos,direction);
-		while((ray.roundPos.x < 0 || ray.roundPos.x >= camera.zoom || ray.roundPos.y < 0 || ray.roundPos.y >= camera.zoom)){
-			IVEC2 block = {(ray.roundPos.x+(u4)camera.pos.x),(ray.roundPos.y+(u4)camera.pos.y)};
-			if(block.x>MAP||block.y>MAP||block.x<0||block.y<0||map[block.y*MAP+block.x]==BLOCK_AIR) break;
-			ray2dIterate(&ray);
-		}
-		while(ray.roundPos.x >= 0 && ray.roundPos.x < camera.zoom && ray.roundPos.y >= 0 && ray.roundPos.y < camera.zoom){
-			ray2dIterate(&ray);
-			switch(map[(ray.roundPos.y+(u4)camera.pos.y)*MAP+(ray.roundPos.x+(u4)camera.pos.x)]){
-			case BLOCK_ENTITY:
-				vramf[ray.roundPos.y*camera.zoom+ray.roundPos.x].r+=color.r;
-				vramf[ray.roundPos.y*camera.zoom+ray.roundPos.x].g+=color.g;
-				vramf[ray.roundPos.y*camera.zoom+ray.roundPos.x].b+=color.b;
-				for(u4 i = 0;i < enemy.cnt;i++){
-					if(iSquare(VEC2subVEC2R(VEC2addVEC2R(pos,camera.pos),enemy.state[i].pos),ray.dir,ENEMY_SIZE*0.5)){
-						ray.roundPos.x = -1;
-						break;
-					}
-				}
-				break;
-			case BLOCK_AIR:
-				vramf[ray.roundPos.y*camera.zoom+ray.roundPos.x].r+=color.r;
-				vramf[ray.roundPos.y*camera.zoom+ray.roundPos.x].g+=color.g;
-				vramf[ray.roundPos.y*camera.zoom+ray.roundPos.x].b+=color.b;
-				break;
-			case BLOCK_NORMAL:
-				vramf[ray.roundPos.y*camera.zoom+ray.roundPos.x].r+=color.r*4.0f;
-				vramf[ray.roundPos.y*camera.zoom+ray.roundPos.x].g+=color.g*4.0f;
-				vramf[ray.roundPos.y*camera.zoom+ray.roundPos.x].b+=color.b*4.0f;
-				ray.roundPos.y = -1;
-				break;
-			}
-		}
-	}
-}
-
-void illuminateInside(VEC3 color,VEC2 pos,f4 angle){
-	RAY2D ray = ray2dCreate(pos,(VEC2){cosf(angle*PI*2.0f),sinf(angle*PI*2.0f)});
-	while(ray.roundPos.x > 0 && ray.roundPos.x < camera.zoom && ray.roundPos.y > 0 && ray.roundPos.y < camera.zoom){
+void mapIlluminate(RAY2D ray,VEC3 color){
+	while(ray.roundPos.x >= 0 && ray.roundPos.x < camera.zoom && ray.roundPos.y >= 0 && ray.roundPos.y < camera.zoom){
 		ray2dIterate(&ray);
 		switch(map[(ray.roundPos.y+(u4)camera.pos.y)*MAP+(ray.roundPos.x+(u4)camera.pos.x)]){
 		case BLOCK_ENTITY:
@@ -119,9 +79,15 @@ void illuminateInside(VEC3 color,VEC2 pos,f4 angle){
 			vramf[ray.roundPos.y*camera.zoom+ray.roundPos.x].g+=color.g;
 			vramf[ray.roundPos.y*camera.zoom+ray.roundPos.x].b+=color.b;
 			for(u4 i = 0;i < enemy.cnt;i++){
-				if(iSquare(VEC2subVEC2R(VEC2addVEC2R(pos,camera.pos),enemy.state[i].pos),ray.dir,ENEMY_SIZE*0.5)){
-					ray.roundPos.x = -1;
-					break;
+				f4 hit_area = (ENEMY_SIZE/2.0f+1.0f);
+				VEC2 enemy_pos_rel = VEC2subVEC2R(VEC2subVEC2R(enemy.state[i].pos,camera.pos),(VEC2){ray.roundPos.x,ray.roundPos.y});
+				if(enemy_pos_rel.x - hit_area < 0.0f && enemy_pos_rel.x + hit_area > 0.0f &&
+				enemy_pos_rel.y - hit_area < 0.0f && enemy_pos_rel.y + hit_area > 0.0f){
+					if(iSquare(VEC2subVEC2R(VEC2addVEC2R(ray.pos,camera.pos),enemy.state[i].pos),ray.dir,ENEMY_SIZE*0.5) != -1.0f){
+						VEC3addVEC3(&enemy.state[i].luminance,color);
+						ray.roundPos.x = -1;
+						break;
+					}
 				}
 			}
 			break;
@@ -140,7 +106,25 @@ void illuminateInside(VEC3 color,VEC2 pos,f4 angle){
 	}
 }
 
-void illuminateMapPart(VEC3 color,VEC2 pos,VEC2 angle,u4 ammount,f4 wideness){
+void illuminateOutside(VEC3 color,VEC2 pos,f4 angle){
+	VEC2 direction = (VEC2){cosf(angle*PI*2.0f),sinf(angle*PI*2.0f)};
+	if(iSquare(VEC2subR(pos,RES/2.0f),direction,RES/2.0f) != -1.0f){
+		RAY2D ray = ray2dCreate(pos,direction);
+		while((ray.roundPos.x < 0 || ray.roundPos.x >= camera.zoom || ray.roundPos.y < 0 || ray.roundPos.y >= camera.zoom)){
+			IVEC2 block = {(ray.roundPos.x+(u4)camera.pos.x),(ray.roundPos.y+(u4)camera.pos.y)};
+			if(block.x>MAP||block.y>MAP||block.x<0||block.y<0||map[block.y*MAP+block.x]==BLOCK_AIR) break;
+			ray2dIterate(&ray);
+		}
+		mapIlluminate(ray,color);
+	}
+}
+
+void illuminateInside(VEC3 color,VEC2 pos,f4 angle){
+	RAY2D ray = ray2dCreate(pos,(VEC2){cosf(angle*PI*2.0f),sinf(angle*PI*2.0f)});
+	mapIlluminate(ray,color);
+}
+
+void lightsourcePartEmit(VEC3 color,VEC2 pos,VEC2 angle,u4 ammount,f4 wideness){
 	f4 tan_angle = atan2f(angle.y,angle.x) / (PI*2.0f);
 	tan_angle -= wideness/2.0f;
 	VEC2subVEC2(&pos,(VEC2){(u4)camera.pos.x,(u4)camera.pos.y});
@@ -156,7 +140,7 @@ void illuminateMapPart(VEC3 color,VEC2 pos,VEC2 angle,u4 ammount,f4 wideness){
 	}
 }
 
-void illuminateMap(VEC3 color,VEC2 pos,u4 ammount){
+void lightsourceEmit(VEC3 color,VEC2 pos,u4 ammount){
 	VEC2subVEC2(&pos,(VEC2){(u4)camera.pos.x,(u4)camera.pos.y});
 	f4 offset = tRnd();
 	if(pos.x < 1.0f || pos.y < 1.0f || pos.x > camera.zoom || pos.y > camera.zoom){
@@ -188,6 +172,7 @@ void openglInit(){
 	glGetUniformLocation      = wglGetProcAddress("glGetUniformLocation");
 	glActiveTexture           = wglGetProcAddress("glActiveTexture");
 	glUniform1i               = wglGetProcAddress("glUniform1i");
+	glUniform1f               = wglGetProcAddress("glUniform1f");
 	glUniform2f               = wglGetProcAddress("glUniform2f");
 	glUniform3f               = wglGetProcAddress("glUniform3f");
 	wglSwapIntervalEXT        = wglGetProcAddress("wglSwapIntervalEXT");
@@ -252,19 +237,19 @@ void opengl(){
 	camera = camera_new;
 	if(player.pos.x - camera.zoom/2.0f - CAM_AREA > camera.pos.x){
 		camera.pos.x += player.pos.x - camera.zoom/2.0f - CAM_AREA - camera.pos.x;
-		if(camera.pos.x > RES+RES/2) worldLoadEast();
+		if(player.pos.x > RES*2) worldLoadEast();
 	}
 	if(player.pos.y - camera.zoom/2.0f - CAM_AREA > camera.pos.y){
 		camera.pos.y += player.pos.y - camera.zoom/2.0f - CAM_AREA - camera.pos.y;
-		if(camera.pos.y > RES+RES/2) worldLoadNorth();
+		if(player.pos.y > RES*2) worldLoadNorth();
 	}
 	if(player.pos.x - camera.zoom/2.0f + CAM_AREA < camera.pos.x){
 		camera.pos.x += player.pos.x - camera.zoom/2.0f + CAM_AREA - camera.pos.x;
-		if(camera.pos.x < RES-RES/2) worldLoadWest();
+		if(player.pos.x < RES) worldLoadWest();
 	}
 	if(player.pos.y - camera.zoom/2.0f + CAM_AREA < camera.pos.y){
 		camera.pos.y += player.pos.y - camera.zoom/2.0f + CAM_AREA - camera.pos.y;
-		if(camera.pos.y < RES-RES/2) worldLoadSouth();
+		if(player.pos.y < RES) worldLoadSouth();
 	}
 	glClear(GL_COLOR_BUFFER_BIT);
 	while(gl_queue.cnt){
@@ -297,16 +282,16 @@ void opengl(){
 	}
 	for(u4 i = 0;i < MAP*MAP;i++){
 		if(map[i]==2){
-			illuminateMap((VEC3){0.02f,0.02f,0.2f},(VEC2){(f4)(i%MAP)+0.5f,(f4)(i/MAP)+0.5f},1024*4);
+			lightsourceEmit((VEC3){0.02f,0.02f,0.2f},(VEC2){(f4)(i%MAP)+0.5f,(f4)(i/MAP)+0.5f},1024*4);
 		}
 	}
 	VEC2 angle = VEC2subVEC2R(getCursorPosMap(),VEC2subVEC2R(player.pos,camera.pos));
-	illuminateMapPart(PLAYER_LUMINANCE,player.pos,angle,128,0.15f);
+	lightsourcePartEmit(PLAYER_LUMINANCE,player.pos,angle,128,0.15f);
 	for(u4 i = 0;i < bullet.cnt;i++){
-		illuminateMap(BULLET_LUMINANCE,bullet.state[i].pos,1024);
+		lightsourceEmit(BULLET_LUMINANCE,bullet.state[i].pos,1024);
 	}
 	for(u4 i = 0;i < particle.cnt;i++){
-		illuminateMap(particle.state[i].color,particle.state[i].pos,1024);
+		lightsourceEmit(particle.state[i].color,particle.state[i].pos,1024);
 	}
 	for(u4 i = 0;i < laser.cnt;i++){
 		VEC2 normalize_pos = VEC2subVEC2R(laser.state[i].pos_dst,laser.state[i].pos_org);
@@ -314,7 +299,7 @@ void opengl(){
 		u4 dst = VEC2length(normalize_pos);
 		VEC2 pos = laser.state[i].pos_org;
 		for(u4 j = 0;j < dst;j++){
-			illuminateMap(LASER_LUMINANCE,pos,128);
+			lightsourceEmit(LASER_LUMINANCE,pos,128);
 			VEC2addVEC2(&pos,direction);
 		}
 	}
@@ -337,13 +322,9 @@ void opengl(){
 	for(u4 i = 0;i < enemy.cnt;i++){
 		VEC2 relative_pos = VEC2subVEC2R(enemy.state[i].pos,camera.pos);
 		if(relative_pos.x>0.0f&&relative_pos.x<camera.zoom&&relative_pos.y>0.0f&&relative_pos.y<camera.zoom){
-			VEC3 luminance = {0.0f,0.0f,0.0f};
-			VEC3addVEC3(&luminance,vramf[(u4)(relative_pos.y+ENEMY_SIZE*0.5f)*camera.zoom+(u4)(relative_pos.x+ENEMY_SIZE*0.5f)]);
-			VEC3addVEC3(&luminance,vramf[(u4)(relative_pos.y-ENEMY_SIZE*0.5f)*camera.zoom+(u4)(relative_pos.x+ENEMY_SIZE*0.5f)]);
-			VEC3addVEC3(&luminance,vramf[(u4)(relative_pos.y+ENEMY_SIZE*0.5f)*camera.zoom+(u4)(relative_pos.x-ENEMY_SIZE*0.5f)]);
-			VEC3addVEC3(&luminance,vramf[(u4)(relative_pos.y-ENEMY_SIZE*0.5f)*camera.zoom+(u4)(relative_pos.x-ENEMY_SIZE*0.5f)]);
-			VEC3mul(&luminance,0.008f);
-			drawEnemy(mapCrdToRenderCrd(enemy.state[i].pos),RD_SQUARE(ENEMY_SIZE),ENEMY_SPRITE,luminance);
+			VEC3mul(&enemy.state[i].luminance,0.025f);
+			drawEnemy(mapCrdToRenderCrd(enemy.state[i].pos),RD_SQUARE(ENEMY_SIZE),ENEMY_SPRITE,enemy.state[i].luminance);
+			enemy.state[i].luminance = (VEC3){0.0f,0.0f,0.0f};
 		}
 	}
 	glUseProgram(particle_shader);
@@ -366,5 +347,12 @@ void opengl(){
 	glActiveTexture(GL_TEXTURE3);
 	glUseProgram(font_shader);
 	drawString(GUI_ENERGY,RD_GUI(2.5f),"energy=");
+	u1 str[80];
+	sprintf(str,"chunk: %i:%i",current_chunk.x,current_chunk.y);
+	drawString((VEC2){0.3f,0.0f},RD_GUI(2.5f),str);
+	sprintf(str,"player: %f:%f",player.pos.x,player.pos.y);
+	drawString((VEC2){0.3f,0.1f},RD_GUI(2.5f),str);
+	sprintf(str,"camera: %f:%f",camera.pos.x,camera.pos.y);
+	drawString((VEC2){0.3f,0.2f},RD_GUI(2.5f),str);
 	memset(vramf,0,sizeof(VEC3)*camera.zoom*camera.zoom);
 }

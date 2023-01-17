@@ -12,7 +12,7 @@
 #define BLOCK_LIGHT  2
 #define BLOCK_ENTITY 3
 
-#define VSYNC 1
+#define VSYNC 0
 
 #define GUI_ENERGY (VEC2){0.18f,0.9f}
 
@@ -75,6 +75,7 @@ void (*glGetShaderInfoLog)(u4 shader,u4 maxlength,u4 *length,u1 *infolog);
 void (*glGenerateMipmap)(u4 target);
 void (*glActiveTexture)(u4 texture);
 void (*glUniform1i)(i4 loc,i4 v1);
+void (*glUniform1f)(i4 loc,f4 v1);
 void (*glUniform2f)(i4 loc,f4 v1,f4 v2);
 void (*glUniform3f)(i4 loc,f4 v1,f4 v2,f4 v3);
 

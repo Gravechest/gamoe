@@ -7,6 +7,8 @@
 
 #pragma comment(lib,"Winmm.lib")
 
+#define ENTITY_REMOVE(TYPE,ID) for(u4 I = ID--;I < TYPE.cnt;I++) TYPE.state[I] = TYPE.state[I+1]; TYPE.cnt--;
+
 #define RES 128
 #define MAP (RES*3)
 
@@ -78,6 +80,7 @@ typedef struct{
 typedef struct{
 	VEC2 vel;
 	VEC2 pos;
+	VEC3 luminance;
 }ENEMY;
 
 typedef struct{
@@ -111,7 +114,7 @@ typedef struct{
 void genMap(IVEC2 crd,u4 offset,u4 depth,f4 value);
 VEC2 getCursorPos();
 VEC2 getCursorPosMap();
-u1 iSquare(VEC2 ro,VEC2 rd,f4 size);
+f4 iSquare(VEC2 ro,VEC2 rd,f4 size);
 
 extern u1* map;
 extern LASERHUB  laser;
