@@ -37,3 +37,4 @@ VEC2 VEC2divFR(VEC2 p,f4 d);
 VEC2 VEC2subVEC2R(VEC2 p,VEC2 p2);
 VEC2 VEC2divR(VEC2 p,f4 d);
 VEC2 VEC2normalizeR(VEC2 p);
+VEC2 VEC2addR(VEC2 p,f4 a);

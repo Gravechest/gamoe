@@ -72,7 +72,6 @@ u4 loadShader(u1* fragment,u1* vertex){
 
 void mapIlluminate(RAY2D ray,VEC3 color){
 	while(ray.roundPos.x >= 0 && ray.roundPos.x < camera.zoom && ray.roundPos.y >= 0 && ray.roundPos.y < camera.zoom){
-		ray2dIterate(&ray);
 		switch(map[(ray.roundPos.y+(u4)camera.pos.y)*MAP+(ray.roundPos.x+(u4)camera.pos.x)]){
 		case BLOCK_ENTITY:
 			vramf[ray.roundPos.y*camera.zoom+ray.roundPos.x].r+=color.r;
@@ -85,8 +84,7 @@ void mapIlluminate(RAY2D ray,VEC3 color){
 				enemy_pos_rel.y - hit_area < 0.0f && enemy_pos_rel.y + hit_area > 0.0f){
 					if(iSquare(VEC2subVEC2R(VEC2addVEC2R(ray.pos,camera.pos),enemy.state[i].pos),ray.dir,ENEMY_SIZE*0.5) != -1.0f){
 						VEC3addVEC3(&enemy.state[i].luminance,color);
-						ray.roundPos.x = -1;
-						break;
+						return;
 					}
 				}
 			}
@@ -100,19 +98,19 @@ void mapIlluminate(RAY2D ray,VEC3 color){
 			vramf[ray.roundPos.y*camera.zoom+ray.roundPos.x].r+=color.r*4.0f;
 			vramf[ray.roundPos.y*camera.zoom+ray.roundPos.x].g+=color.g*4.0f;
 			vramf[ray.roundPos.y*camera.zoom+ray.roundPos.x].b+=color.b*4.0f;
-			ray.roundPos.y = -1;
-			break;
+			return;
 		}
+		ray2dIterate(&ray);
 	}
 }
 
 void illuminateOutside(VEC3 color,VEC2 pos,f4 angle){
 	VEC2 direction = (VEC2){cosf(angle*PI*2.0f),sinf(angle*PI*2.0f)};
-	if(iSquare(VEC2subR(pos,RES/2.0f),direction,RES/2.0f) != -1.0f){
+	if(iSquare(VEC2subR(pos,camera.zoom/2.0f),direction,(f4)camera.zoom/2.0f) != -1.0f){
 		RAY2D ray = ray2dCreate(pos,direction);
 		while((ray.roundPos.x < 0 || ray.roundPos.x >= camera.zoom || ray.roundPos.y < 0 || ray.roundPos.y >= camera.zoom)){
 			IVEC2 block = {(ray.roundPos.x+(u4)camera.pos.x),(ray.roundPos.y+(u4)camera.pos.y)};
-			if(block.x>MAP||block.y>MAP||block.x<0||block.y<0||map[block.y*MAP+block.x]==BLOCK_AIR) break;
+			if(block.x>MAP||block.y>MAP||block.x<0||block.y<0||map[block.y*MAP+block.x]==BLOCK_NORMAL) break;
 			ray2dIterate(&ray);
 		}
 		mapIlluminate(ray,color);
@@ -234,6 +232,7 @@ void openglInit(){
 }
 
 void opengl(){
+	printf("dive\n");
 	camera = camera_new;
 	if(player.pos.x - camera.zoom/2.0f - CAM_AREA > camera.pos.x){
 		camera.pos.x += player.pos.x - camera.zoom/2.0f - CAM_AREA - camera.pos.x;
@@ -261,11 +260,6 @@ void opengl(){
 			glActiveTexture(GL_TEXTURE0);
 			break;
 		}
-		case 1:
-			drawRect(gl_queue.message[gl_queue.cnt].rect.pos,
-					    gl_queue.message[gl_queue.cnt].rect.size,
-						gl_queue.message[gl_queue.cnt].rect.color);
-			break;
 		}
 	}
 	entity_shadows_cnt = 0;
@@ -279,7 +273,9 @@ void opengl(){
 				}
 			}
 		}
+		printf("in\n");
 	}
+	printf("in\n");
 	for(u4 i = 0;i < MAP*MAP;i++){
 		if(map[i]==2){
 			lightsourceEmit((VEC3){0.02f,0.02f,0.2f},(VEC2){(f4)(i%MAP)+0.5f,(f4)(i/MAP)+0.5f},1024*4);
@@ -348,11 +344,16 @@ void opengl(){
 	glUseProgram(font_shader);
 	drawString(GUI_ENERGY,RD_GUI(2.5f),"energy=");
 	u1 str[80];
-	sprintf(str,"chunk: %i:%i",current_chunk.x,current_chunk.y);
+	sprintf(str,"chunk: %i,%i",current_chunk.x,current_chunk.y);
 	drawString((VEC2){0.3f,0.0f},RD_GUI(2.5f),str);
-	sprintf(str,"player: %f:%f",player.pos.x,player.pos.y);
+	sprintf(str,"player: %f,%f",player.pos.x,player.pos.y);
 	drawString((VEC2){0.3f,0.1f},RD_GUI(2.5f),str);
-	sprintf(str,"camera: %f:%f",camera.pos.x,camera.pos.y);
+	sprintf(str,"camera: %f,%f",camera.pos.x,camera.pos.y);
 	drawString((VEC2){0.3f,0.2f},RD_GUI(2.5f),str);
+	static u8 t,t2;
+	QueryPerformanceCounter(&t2);
+	sprintf(str,"ns/frame: %i",(t2-t)/10);
+	QueryPerformanceCounter(&t);
+	drawString((VEC2){0.3f,0.3f},RD_GUI(2.5f),str);
 	memset(vramf,0,sizeof(VEC3)*camera.zoom*camera.zoom);
 }

@@ -78,6 +78,10 @@ VEC2 VEC2subR(VEC2 p,f4 s){
 	return (VEC2){p.x-s,p.y-s};
 }
 
+VEC2 VEC2addR(VEC2 p,f4 a){
+	return (VEC2){p.x-a,p.y-a};
+}
+
 void VEC2rot(VEC2* p,f4 rot){
     f4 b = cosf(rot) * p->x - sinf(rot) * p->y;
     p->y = sinf(rot) * p->x + cosf(rot) * p->y;

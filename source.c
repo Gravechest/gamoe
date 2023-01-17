@@ -110,7 +110,7 @@ i4 proc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam){
 		break;
 	}
 	case WM_RBUTTONDOWN:
-		if(1){
+		if(player.energy>0.2f){
 			VEC2 direction = VEC2subVEC2R(getCursorPosMap(),VEC2subVEC2R(player.pos,camera.pos));
 			bullet.state[bullet.cnt].pos = player.pos;
 			bullet.state[bullet.cnt++].vel = VEC2divR(VEC2normalizeR(direction),5.0f);
@@ -202,7 +202,7 @@ void physics(){
 		}
 		VEC2addVEC2(&player.pos,player.vel);
 		collision(&player.pos,player.vel,PLAYER_SIZE/2.0f);
-		VEC2mul(&player.vel,PR_FRICTION);/*
+		VEC2mul(&player.vel,PR_FRICTION);
 		if(tRnd()<1.02f && enemy.cnt < 16){
 			enemy.state[enemy.cnt++].pos = (VEC2){tRnd()*RES,tRnd()*RES};
 		}
@@ -217,25 +217,32 @@ void physics(){
 				VEC2addVEC2(&enemy.state[i].vel,(VEC2){(tRnd()-1.5f)/2.5f,(tRnd()-1.5f)/2.5f});
 			}
 			VEC2addVEC2(&enemy.state[i].pos,enemy.state[i].vel);
-			collision(&enemy.state[i].pos,enemy.state[i].vel,ENEMY_SIZE/2.0f);
+			collision(&enemy.state[i].pos,enemy.state[i].vel,ENEMY_SIZE/2.0f);/*
+			for(u4 j = 0;j < enemy.cnt;j++){
+				if(enemy.state[i].pos.x<enemy.state[j].pos.x+ENEMY_SIZE&&enemy.state[i].pos.x>enemy.state[j].pos.x-ENEMY_SIZE&&
+				enemy.state[i].pos.y<enemy.state[j].pos.y+ENEMY_SIZE&&enemy.state[i].pos.y>enemy.state[j].pos.y-ENEMY_SIZE){
+					VEC2addVEC2(&enemy.state[i].vel,VEC2mulR(VEC2normalizeR(VEC2subVEC2R(enemy.state[j].pos,enemy.state[i].pos)),0.01f));
+				}
+			}*/
 			VEC2mul(&enemy.state[i].vel,PR_FRICTION);	
 			if(enemy.state[i].pos.x < ENEMY_SIZE || enemy.state[i].pos.x > MAP-ENEMY_SIZE-1.0f ||
 			enemy.state[i].pos.y < ENEMY_SIZE || enemy.state[i].pos.y > MAP-ENEMY_SIZE-1.0f){
 				ENTITY_REMOVE(enemy,i);
 			}
-		}*/
+		}
 		for(u4 i = 0;i < bullet.cnt;i++){
 			VEC2addVEC2(&bullet.state[i].pos,bullet.state[i].vel);
 			if(bullet.state[i].pos.x < 0.0f || bullet.state[i].pos.x > MAP ||
 			bullet.state[i].pos.y < 0.0f || bullet.state[i].pos.y > MAP ||
 			map[(u4)bullet.state[i].pos.y*MAP+(u4)bullet.state[i].pos.x] == BLOCK_NORMAL){
-				for(u4 j = i;j < bullet.cnt;j++) bullet.state[j] = bullet.state[j+1];
-				bullet.cnt--;
+				ENTITY_REMOVE(bullet,i);
 			}
 		}
 		for(u4 i = 0;i < laser.cnt;i++){
 			if(laser.state[i].health--) VEC2addVEC2(&laser.state[i].pos_org,player.vel);
-			else                        ENTITY_REMOVE(laser,i);
+			else{
+				ENTITY_REMOVE(laser,i);
+			}
 		}
 		for(u4 i = 0;i < particle.cnt;i++){
 			if(particle.state[i].health--){
@@ -243,7 +250,9 @@ void physics(){
 				collision(&particle.state[i].pos,particle.state[i].vel,0.5f);
 				if(particle.state[i].health<7) VEC3mul(&particle.state[i].color,0.8f);
 			}
-			else ENTITY_REMOVE(particle,i);
+			else{
+				ENTITY_REMOVE(particle,i);
+			}
 		}
 		if(player.weapon_cooldown) player.weapon_cooldown--;
 		Sleep(15);
