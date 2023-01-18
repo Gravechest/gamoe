@@ -232,23 +232,38 @@ void openglInit(){
 }
 
 void opengl(){
-	printf("dive\n");
 	camera = camera_new;
 	if(player.pos.x - camera.zoom/2.0f - CAM_AREA > camera.pos.x){
 		camera.pos.x += player.pos.x - camera.zoom/2.0f - CAM_AREA - camera.pos.x;
-		if(player.pos.x > RES*2) worldLoadEast();
+		if(player.pos.x > RES*2){ 
+			worldLoadEast();
+			glActiveTexture(GL_TEXTURE1);
+			glTexSubImage2D(GL_TEXTURE_2D,0,0,0,MAP,MAP,GL_RED,GL_UNSIGNED_BYTE,map);
+		}
 	}
 	if(player.pos.y - camera.zoom/2.0f - CAM_AREA > camera.pos.y){
 		camera.pos.y += player.pos.y - camera.zoom/2.0f - CAM_AREA - camera.pos.y;
-		if(player.pos.y > RES*2) worldLoadNorth();
+		if(player.pos.y > RES*2){
+			worldLoadNorth();
+			glActiveTexture(GL_TEXTURE1);
+			glTexSubImage2D(GL_TEXTURE_2D,0,0,0,MAP,MAP,GL_RED,GL_UNSIGNED_BYTE,map);
+		}
 	}
 	if(player.pos.x - camera.zoom/2.0f + CAM_AREA < camera.pos.x){
 		camera.pos.x += player.pos.x - camera.zoom/2.0f + CAM_AREA - camera.pos.x;
-		if(player.pos.x < RES) worldLoadWest();
+		if(player.pos.x < RES){
+			worldLoadWest();
+			glActiveTexture(GL_TEXTURE1);
+			glTexSubImage2D(GL_TEXTURE_2D,0,0,0,MAP,MAP,GL_RED,GL_UNSIGNED_BYTE,map);
+		}
 	}
 	if(player.pos.y - camera.zoom/2.0f + CAM_AREA < camera.pos.y){
 		camera.pos.y += player.pos.y - camera.zoom/2.0f + CAM_AREA - camera.pos.y;
-		if(player.pos.y < RES) worldLoadSouth();
+		if(player.pos.y < RES){
+			worldLoadSouth();
+			glActiveTexture(GL_TEXTURE1);
+			glTexSubImage2D(GL_TEXTURE_2D,0,0,0,MAP,MAP,GL_RED,GL_UNSIGNED_BYTE,map);
+		}
 	}
 	glClear(GL_COLOR_BUFFER_BIT);
 	while(gl_queue.cnt){
@@ -273,11 +288,9 @@ void opengl(){
 				}
 			}
 		}
-		printf("in\n");
 	}
-	printf("in\n");
 	for(u4 i = 0;i < MAP*MAP;i++){
-		if(map[i]==2){
+		if(map[i]==BLOCK_LIGHT){
 			lightsourceEmit((VEC3){0.02f,0.02f,0.2f},(VEC2){(f4)(i%MAP)+0.5f,(f4)(i/MAP)+0.5f},1024*4);
 		}
 	}

@@ -56,3 +56,7 @@ f4 tMinf(f4 p,f4 p2){
 f4 tAbsf(f4 p){
 	return p < 0.0f ? -p : p;
 }
+
+f4 tInvf(f4 p){
+	return 1.0f/p;
+}

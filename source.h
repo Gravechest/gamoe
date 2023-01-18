@@ -41,6 +41,7 @@
 #define VK_A 0x41
 #define VK_D 0x44
 #define VK_L 0x4C
+#define VK_F 0x46
 
 #define WNDOFFX 0
 #define WNDOFFY 0

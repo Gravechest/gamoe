@@ -38,9 +38,11 @@ LASERHUB  laser;
 PARTICLEHUB particle;
 RGB* texture16;
 
+u1 fullscreen = 1;
+
 void genMap(IVEC2 crd,u4 offset,u4 depth,f4 value){
 	if(!depth){
-		if(value > 0.0f) map[crd.x*MAP+crd.y+offset] = 1;
+		if(value > 0.0f) map[crd.x*MAP+crd.y+offset] = BLOCK_NORMAL;
 		return;
 	}
 	else{
@@ -93,6 +95,17 @@ i4 proc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam){
 	switch(msg){
 	case WM_KEYDOWN:
 		switch(wParam){
+		case VK_F:
+			fullscreen ^= 1;
+			if(fullscreen){
+				SetWindowLongPtrA(window,GWL_STYLE,WS_VISIBLE|WS_POPUP);
+				SetWindowPos(window,0,0,0,GetSystemMetrics(SM_CXSCREEN),GetSystemMetrics(SM_CYSCREEN),0);
+			}
+			else{
+				SetWindowLongPtrA(window,GWL_STYLE,WS_VISIBLE|WS_MAXIMIZEBOX|WS_MINIMIZEBOX|WS_SYSMENU|WS_CAPTION|WS_SIZEBOX);
+				SetWindowPos(window,0,100,100,1000,1000,0);
+			}
+			break;
 		case VK_L:
 			map[(u4)player.pos.y*MAP+(u4)player.pos.x] = 2;
 			gl_queue.message[gl_queue.cnt].id = 0;
@@ -125,27 +138,40 @@ i4 proc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam){
 				if(map[ray.roundPos.y*MAP+ray.roundPos.x]==1) break;
 				ray2dIterate(&ray);
 			}
+			f4 min_dst = 99999.0f;
+			i4 id = -1;
 			for(u4 i = 0;i < enemy.cnt;i++){
-				if(iSquare(VEC2subVEC2R(player.pos,enemy.state[i].pos),direction,ENEMY_SIZE/2.0f) != -1.0f){
+				VEC2 rel_pos = VEC2subVEC2R(player.pos,enemy.state[i].pos);
+				if(iSquare(rel_pos,direction,ENEMY_SIZE/2.0f) != -1.0f){
 					u4 iterations = (u4)tAbsf(player.pos.x-enemy.state[i].pos.x)+(u4)tAbsf(player.pos.y-enemy.state[i].pos.y);
-					if(lineOfSight(player.pos,direction,iterations)){
-						f4 dst = VEC2length(VEC2subVEC2R(player.pos,enemy.state[i].pos));
-						VEC2 ray_end_pos = VEC2addVEC2R(player.pos,VEC2mulR(VEC2normalizeR(direction),dst));
-						for(u4 j = 0;j < 16;j++){
-							particle.state[particle.cnt].color = LASER_LUMINANCE;
-							particle.state[particle.cnt].vel = VEC2mulR(VEC2rotR(direction,(tRnd()-1.5f)*0.5f),(tRnd()-0.5f)*0.01f);
-							particle.state[particle.cnt].health = tRnd()*20.0f;
-							particle.state[particle.cnt++].pos = ray_end_pos;
-						}
-						laser.state[laser.cnt].pos_dst = ray_end_pos;
-						for(u4 j = i;j < enemy.cnt;j++) enemy.state[j] = enemy.state[j+1];
-						enemy.cnt--;
-						goto end;
+					f4 dst = VEC2length(VEC2subVEC2R(player.pos,enemy.state[i].pos));
+					if(lineOfSight(player.pos,direction,iterations) && min_dst > dst){
+						min_dst = dst;
+						id = i;
 					}
 				}
 			}
-			VEC2 ray_end_pos = ray2dGetCoords(ray);
-			laser.state[laser.cnt].pos_dst = ray_end_pos;
+			if(id!=-1){
+				VEC2 ray_end_pos = VEC2addVEC2R(player.pos,VEC2mulR(VEC2normalizeR(direction),min_dst));
+				for(u4 j = 0;j < 3;j++){
+					particle.state[particle.cnt].color = VEC3mulR(LASER_LUMINANCE,5.0f);
+					particle.state[particle.cnt].vel = VEC2mulR(VEC2rotR(direction,(tRnd()-1.5f)*0.5f),(tRnd()-0.5f)*0.01f);
+					particle.state[particle.cnt].health = tRnd()*200.0f;
+					particle.state[particle.cnt++].pos = ray_end_pos;
+				}
+				laser.state[laser.cnt].pos_dst = ray_end_pos;
+				for(u4 i = 0;i < enemy.cnt;i++){
+					if(id==i) continue;
+					VEC2 rel_pos = VEC2subVEC2R(enemy.state[i].pos,enemy.state[id].pos);
+					f4 power = tInvf(VEC2length(rel_pos));
+					VEC2addVEC2(&enemy.state[i].vel,VEC2mulR(rel_pos,power));
+				}
+				ENTITY_REMOVE(enemy,id);
+			}
+			else{
+				VEC2 ray_end_pos = ray2dGetCoords(ray);
+				laser.state[laser.cnt].pos_dst = ray_end_pos;
+			}
 		end:
 			laser.state[laser.cnt].pos_org = player.pos;
 			laser.state[laser.cnt++].health = 5;
@@ -203,7 +229,7 @@ void physics(){
 		VEC2addVEC2(&player.pos,player.vel);
 		collision(&player.pos,player.vel,PLAYER_SIZE/2.0f);
 		VEC2mul(&player.vel,PR_FRICTION);
-		if(tRnd()<1.02f && enemy.cnt < 16){
+		if(/*tRnd()<1.02f && */enemy.cnt < 16){
 			enemy.state[enemy.cnt++].pos = (VEC2){tRnd()*RES,tRnd()*RES};
 		}
 		for(u4 i = 0;i < enemy.cnt;i++){
@@ -217,13 +243,14 @@ void physics(){
 				VEC2addVEC2(&enemy.state[i].vel,(VEC2){(tRnd()-1.5f)/2.5f,(tRnd()-1.5f)/2.5f});
 			}
 			VEC2addVEC2(&enemy.state[i].pos,enemy.state[i].vel);
-			collision(&enemy.state[i].pos,enemy.state[i].vel,ENEMY_SIZE/2.0f);/*
+			collision(&enemy.state[i].pos,enemy.state[i].vel,ENEMY_SIZE/2.0f);
 			for(u4 j = 0;j < enemy.cnt;j++){
+				if(i==j) continue;
 				if(enemy.state[i].pos.x<enemy.state[j].pos.x+ENEMY_SIZE&&enemy.state[i].pos.x>enemy.state[j].pos.x-ENEMY_SIZE&&
 				enemy.state[i].pos.y<enemy.state[j].pos.y+ENEMY_SIZE&&enemy.state[i].pos.y>enemy.state[j].pos.y-ENEMY_SIZE){
-					VEC2addVEC2(&enemy.state[i].vel,VEC2mulR(VEC2normalizeR(VEC2subVEC2R(enemy.state[j].pos,enemy.state[i].pos)),0.01f));
+					VEC2subVEC2(&enemy.state[i].vel,VEC2mulR(VEC2normalizeR(VEC2subVEC2R(enemy.state[j].pos,enemy.state[i].pos)),0.01f));
 				}
-			}*/
+			}
 			VEC2mul(&enemy.state[i].vel,PR_FRICTION);	
 			if(enemy.state[i].pos.x < ENEMY_SIZE || enemy.state[i].pos.x > MAP-ENEMY_SIZE-1.0f ||
 			enemy.state[i].pos.y < ENEMY_SIZE || enemy.state[i].pos.y > MAP-ENEMY_SIZE-1.0f){

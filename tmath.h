@@ -14,3 +14,4 @@ i4 tMin(i4 p,i4 p2);
 f4 tMaxf(f4 p,f4 p2);
 f4 tMinf(f4 p,f4 p2);
 f4 tAbsf(f4 p);
+f4 tInvf(f4 p);

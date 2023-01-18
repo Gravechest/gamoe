@@ -89,21 +89,9 @@ void loadChunk(IVEC2 crd){
 void moveEntities(f4 direction,u4 axis){
 	camera.pos.a[axis] += direction;
 	player.pos.a[axis] += direction;
-	for(u4 i = 0;i < enemy.cnt;i++){
-		enemy.state[i].pos.a[axis] += direction;
-		if(enemy.state[i].pos.a[axis] < ENEMY_SIZE || enemy.state[i].pos.a[axis] > MAP-ENEMY_SIZE-1.0f){
-			for(u4 j = i--;j < enemy.cnt;j++) enemy.state[j] = enemy.state[j+1];
-			enemy.cnt--;
-		}
-	}
-	for(u4 i = 0;i < bullet.cnt;i++){
-		bullet.state[i].pos.a[axis] -= direction;
-		if(bullet.state[i].pos.a[axis] < BULLET_SIZE || bullet.state[i].pos.a[axis] > MAP-BULLET_SIZE-1.0f){
-			ENTITY_REMOVE(bullet,i);
-			for(u4 j = i--;j < bullet.cnt;j++) bullet.state[j] = bullet.state[j+1];
-			bullet.cnt--;
-		}
-	}
+	CHUNK_ENTITY_MOVE(enemy,ENEMY_SIZE);
+	CHUNK_ENTITY_MOVE(bullet,BULLET_SIZE);
+	CHUNK_ENTITY_MOVE(particle,2.0f);
 }
 
 void worldLoadEast(){
