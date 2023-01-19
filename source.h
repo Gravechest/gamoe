@@ -1,15 +1,24 @@
 #pragma once
 
-#include "vec2.h"
 #include "small_types.h"
 #include "ivec2.h"
+#include "vec2.h"
 #include "vec3.h"
 
 #pragma comment(lib,"Winmm.lib")
 
+#define PLAYER_SPEED 0.017f
+
+#define BLOCK_AIR       0
+#define BLOCK_NORMAL    1
+#define BLOCK_LIGHT     2
+#define BLOCK_ENTITY    3
+#define BLOCK_SPRINKLER 4
+
 #define WEAPON_LASER_COST 700
 
 #define ENERGY_MAX 6000
+#define HEALTH_MAX 100
 
 #define PARTICLE_NORMAL        0
 #define PARTICLE_ENERGY_INFANT 1
@@ -23,6 +32,7 @@
 #define SIM_SIZE_SURFACE (SIM_SIZE*SIM_SIZE)
 
 #define PLAYER_MOUSE(X) (VEC2){X.x/8.4375f,CHUNK_SIZE-X.y/8.4375f}
+#define PLAYER_SPAWN {CHUNK_SIZE/2+CHUNK_SIZE,CHUNK_SIZE/2+CHUNK_SIZE}
 
 #define LASER_LUMINANCE (VEC3){0.04f,0.005f,0.03f}
 #define RD_LASER_LUMINANCE (VEC3){LASER_LUMINANCE.r*8.0f,LASER_LUMINANCE.g*8.0f,LASER_LUMINANCE.b*8.0f}
@@ -66,10 +76,11 @@ typedef struct{
 }RGB;
 
 typedef struct{
+	u4 health;
 	u4 flashlight;
 	u4 energy;
 	u4 weapon_cooldown;
-	u4 lightBulletCnt;
+	u4 respawn_countdown;
 	VEC2 vel;
 	VEC2 pos;
 }PLAYER;
@@ -138,12 +149,15 @@ typedef struct{
 void genMap(IVEC2 crd,u4 offset,u4 depth,f4 value);
 VEC2 getCursorPos();
 VEC2 getCursorPosMap();
+u1* loadFile(u1* name);
+RGB* loadBMP(u1* name);
 
 extern u1* map;
 extern LASERHUB  laser;
 extern PARTICLEHUB particle;
 extern BULLETHUB bullet;
 extern ENEMYHUB  enemy;
+extern BLOCKENTITYHUB block_entity;
 extern PLAYER player;
 extern CAMERA camera;
 extern CAMERA camera_new;

@@ -2,6 +2,8 @@
 
 #include "small_types.h"
 
+#define VEC3_ZERO (VEC3){0.0f,0.0f,0.0f}
+
 typedef struct{
 	union{
 		f4 r;

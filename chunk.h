@@ -27,6 +27,7 @@ void worldLoadEast();
 void worldLoadWest();
 void worldLoadNorth();
 void worldLoadSouth();
+void worldLoadSpawn();
 
 extern CHUNKHUB chunk;
 extern IVEC2 current_chunk;

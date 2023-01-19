@@ -23,6 +23,7 @@ WNDCLASS wndclass = {.lpfnWndProc = proc,.lpszClassName = "class",.lpszMenuName 
 HWND window;
 HDC dc;
 MSG Msg;
+IVEC2 client_resolution;
 
 VEC3* vramf;
 RGB*  vram;
@@ -30,7 +31,7 @@ u1* map;
 
 CAMERA camera = {CHUNK_SIZE,CHUNK_SIZE,CHUNK_SIZE};
 CAMERA camera_new = {CHUNK_SIZE,CHUNK_SIZE,CHUNK_SIZE};
-PLAYER player = {.pos = {CHUNK_SIZE/2+CHUNK_SIZE,CHUNK_SIZE/2+CHUNK_SIZE},.energy = ENERGY_MAX};
+PLAYER player = {.pos = PLAYER_SPAWN,.energy = ENERGY_MAX,.health = HEALTH_MAX};
 
 BULLETHUB bullet;
 ENEMYHUB  enemy;
@@ -41,19 +42,27 @@ RGB* texture16;
 
 u1 fullscreen = 1;
 
-void genMap(IVEC2 crd,u4 offset,u4 depth,f4 value){
-	if(!depth){
-		if(value > 0.0f) map[crd.x*SIM_SIZE+crd.y+offset] = BLOCK_NORMAL;
-		return;
-	}
-	else{
-		crd.x *= 2;
-		crd.y *= 2;
-		genMap((IVEC2){crd.x  ,crd.y  },offset,depth-1,value+tRnd()-1.5f);
-		genMap((IVEC2){crd.x+1,crd.y  },offset,depth-1,value+tRnd()-1.5f);
-		genMap((IVEC2){crd.x  ,crd.y+1},offset,depth-1,value+tRnd()-1.5f);
-		genMap((IVEC2){crd.x+1,crd.y+1},offset,depth-1,value+tRnd()-1.5f);
-	}
+u1* loadFile(u1* name){
+	HANDLE h = CreateFileA(name,GENERIC_READ,0,0,OPEN_EXISTING,FILE_ATTRIBUTE_NORMAL,0);
+	u4 fsize = GetFileSize(h,0);
+	u1* r = HeapAlloc(GetProcessHeap(),0,fsize+1);
+	ReadFile(h,r,fsize,0,0);
+	r[fsize] = 0;
+	CloseHandle(h);
+	return r;
+}
+
+RGB* loadBMP(u1* name){
+	HANDLE h = CreateFileA(name,GENERIC_READ,0,0,OPEN_EXISTING,FILE_ATTRIBUTE_NORMAL,0);
+	u4 fsize = GetFileSize(h,0);
+	u1* text = HeapAlloc(GetProcessHeap(),8,fsize+1);
+	u4 offset;
+	SetFilePointer(h,0x0a,0,0);
+	ReadFile(h,&offset,4,0,0);
+	SetFilePointer(h,offset,0,0);
+	ReadFile(h,text,fsize-offset,0,0);
+	CloseHandle(h);
+	return text;
 }
 
 VEC2 getCursorPos(){
@@ -75,7 +84,7 @@ VEC2 entityPull(VEC2 entity,VEC2 destination,f4 power){
 	VEC2 rel_pos = VEC2subVEC2R(destination,entity);
 	f4 distance = VEC2length(rel_pos);
 	VEC2 to_destination = VEC2divR(rel_pos,distance);
-	return VEC2mulR(to_destination,power/distance);
+	return VEC2mulR(to_destination,power/(distance*distance));
 }
 
 u1 lineOfSight(VEC2 pos,VEC2 dir,u4 iterations){
@@ -89,17 +98,25 @@ u1 lineOfSight(VEC2 pos,VEC2 dir,u4 iterations){
 
 i4 proc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam){
 	switch(msg){
+	case WM_SIZE:
+		gl_queue.message[gl_queue.cnt].pos = (IVEC2){lParam>>16,lParam&0xffff}; 
+		gl_queue.message[gl_queue.cnt++].id = GLMESSAGE_WND_SIZECHANGE;
+		break;
 	case WM_KEYDOWN:
 		switch(wParam){
 		case VK_F:
 			fullscreen ^= 1;
 			if(fullscreen){
 				SetWindowLongPtrA(window,GWL_STYLE,WS_VISIBLE|WS_POPUP);
-				SetWindowPos(window,0,0,0,GetSystemMetrics(SM_CXSCREEN),GetSystemMetrics(SM_CYSCREEN),0);
+				SetWindowPos(window,0,0,0,client_resolution.x,client_resolution.y,0);
+				gl_queue.message[gl_queue.cnt].pos = client_resolution; 
+				gl_queue.message[gl_queue.cnt++].id = GLMESSAGE_WND_SIZECHANGE;
 			}
 			else{
 				SetWindowLongPtrA(window,GWL_STYLE,WS_VISIBLE|WS_MAXIMIZEBOX|WS_MINIMIZEBOX|WS_SYSMENU|WS_CAPTION|WS_SIZEBOX);
-				SetWindowPos(window,0,100,100,1000,1000,0);
+				SetWindowPos(window,0,100,100,1000,560,0);
+				gl_queue.message[gl_queue.cnt].pos = (IVEC2){900,460}; 
+				gl_queue.message[gl_queue.cnt++].id = GLMESSAGE_WND_SIZECHANGE;
 			}
 			break;
 		case VK_L:
@@ -130,7 +147,7 @@ i4 proc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam){
 			f4 min_dst = 99999.0f;
 			i4 id = -1;
 			for(u4 i = 0;i < enemy.cnt;i++){
-				if(rayIntersectSquare(player.pos,direction,enemy.state[i].pos,ENEMY_SIZE/2.0f) != -1.0f){
+				if(rayIntersectSquare(enemy.state[i].pos,direction,player.pos,ENEMY_SIZE/2.0f) != -1.0f){
 					u4 iterations = (u4)tAbsf(player.pos.x-enemy.state[i].pos.x)+(u4)tAbsf(player.pos.y-enemy.state[i].pos.y);
 					f4 dst = VEC2distance(player.pos,enemy.state[i].pos);
 					if(lineOfSight(player.pos,direction,iterations) && min_dst > dst){
@@ -190,6 +207,14 @@ void collision(VEC2* pos,VEC2 vel,f4 size){
 	}
 }
 
+u1 AABBcollision(VEC2 pos1,VEC2 pos2,f4 size1,f4 size2){
+	if(pos1.x < pos2.x + size2 && pos1.x + size1 > pos2.x && 
+	pos1.y < pos2.y + size2 && pos1.y + size1 > pos2.y){
+		return 1;
+	}
+	return 0;
+}
+
 void gametick(){
 	for(;;){
 		u1 key_w = GetKeyState(VK_W) & 0x80;
@@ -197,20 +222,20 @@ void gametick(){
 		u1 key_s = GetKeyState(VK_S) & 0x80;
 		u1 key_d = GetKeyState(VK_D) & 0x80;
 		if(key_w){
-			if(key_d || key_a) player.vel.y+=0.04f * 0.7f;
-			else               player.vel.y+=0.04f;
+			if(key_d || key_a) player.vel.y+=PLAYER_SPEED * 0.7f;
+			else               player.vel.y+=PLAYER_SPEED;
 		}
 		if(key_s){
-			if(key_d || key_a) player.vel.y-=0.04f * 0.7f;
-			else               player.vel.y-=0.04f;
+			if(key_d || key_a) player.vel.y-=PLAYER_SPEED * 0.7f;
+			else               player.vel.y-=PLAYER_SPEED;
 		}
 		if(key_d){
-			if(key_s || key_w) player.vel.x+=0.04f * 0.7f;
-			else               player.vel.x+=0.04f;
+			if(key_s || key_w) player.vel.x+=PLAYER_SPEED * 0.7f;
+			else               player.vel.x+=PLAYER_SPEED;
 		}
 		if(key_a){
-			if(key_s || key_w) player.vel.x-=0.04f * 0.7f;
-			else               player.vel.x-=0.04f;
+			if(key_s || key_w) player.vel.x-=PLAYER_SPEED * 0.7f;
+			else               player.vel.x-=PLAYER_SPEED;
 		}
 		if(player.energy && GetKeyState(VK_RBUTTON) & 0x80){
 			player.flashlight = 1;
@@ -222,14 +247,17 @@ void gametick(){
 		VEC2addVEC2(&player.pos,player.vel);
 		collision(&player.pos,player.vel,PLAYER_SIZE/2.0f);
 		VEC2mul(&player.vel,PR_FRICTION);
-		if(/*tRnd()<1.02f && */enemy.cnt < 0){
-			enemy.state[enemy.cnt++].pos = (VEC2){tRnd()*CHUNK_SIZE,tRnd()*CHUNK_SIZE};
+		if(tRnd()<1.01f && enemy.cnt < 32){
+			VEC2 spawn = (VEC2){(tRnd()-1.0f)*CHUNK_SIZE,(tRnd()-1.0f)*CHUNK_SIZE};
+			if(tRnd()<1.5f) spawn.x += CHUNK_SIZE;
+			if(tRnd()<1.5f) spawn.y += CHUNK_SIZE;
+			enemy.state[enemy.cnt++].pos = spawn;
 		}
 		for(u4 i = 0;i < enemy.cnt;i++){
 			u4 iterations = (u4)fabsf(player.pos.x-enemy.state[i].pos.x)+(u4)fabsf(player.pos.y-enemy.state[i].pos.y);
 			VEC2 toPlayer = VEC2normalizeR(VEC2subVEC2R(player.pos,enemy.state[i].pos));
-			if(lineOfSight(enemy.state[i].pos,toPlayer,iterations)){
-				VEC2div(&toPlayer,50.0f);
+			if(player.health && lineOfSight(enemy.state[i].pos,toPlayer,iterations)){
+				VEC2div(&toPlayer,65.0f);
 				VEC2addVEC2(&enemy.state[i].vel,toPlayer);
 			}
 			else if(tRnd() < 1.05f){
@@ -239,10 +267,28 @@ void gametick(){
 			collision(&enemy.state[i].pos,enemy.state[i].vel,ENEMY_SIZE/2.0f);
 			for(u4 j = 0;j < enemy.cnt;j++){
 				if(i==j) continue;
-				if(enemy.state[i].pos.x<enemy.state[j].pos.x+ENEMY_SIZE&&enemy.state[i].pos.x>enemy.state[j].pos.x-ENEMY_SIZE&&
-				enemy.state[i].pos.y<enemy.state[j].pos.y+ENEMY_SIZE&&enemy.state[i].pos.y>enemy.state[j].pos.y-ENEMY_SIZE){
-					VEC2subVEC2(&enemy.state[i].vel,VEC2mulR(VEC2normalizeR(VEC2subVEC2R(enemy.state[j].pos,enemy.state[i].pos)),0.01f));
+				if(AABBcollision(enemy.state[i].pos,enemy.state[j].pos,ENEMY_SIZE,ENEMY_SIZE)){
+					VEC2 pushaway = VEC2mulR(VEC2normalizeR(VEC2subVEC2R(enemy.state[j].pos,enemy.state[i].pos)),0.1f);
+					VEC2subVEC2(&enemy.state[i].vel,pushaway);
 				}
+			}
+			if(player.health && AABBcollision(enemy.state[i].pos,player.pos,ENEMY_SIZE,PLAYER_SIZE)){
+				VEC2 pushaway = VEC2mulR(VEC2normalizeR(VEC2subVEC2R(player.pos,enemy.state[i].pos)),0.1f);
+				VEC2subVEC2(&enemy.state[i].vel,pushaway);
+				player.health -= 2;
+				if(player.health<0){
+					player.health = 0;
+					player.respawn_countdown = 120;
+				}
+				VEC2 rel_pos = VEC2subVEC2R(enemy.state[i].pos,player.pos);
+				VEC2 velocity = VEC2mulR(rel_pos,(tRnd()-1.0f)*0.1f); 
+				VEC2rot(&velocity,(tRnd()-1.5f)*0.5f);
+				particle.state[particle.cnt].color = (VEC3){0.07f,0.02f,0.02f};
+				particle.state[particle.cnt].type = PARTICLE_NORMAL;
+				particle.state[particle.cnt].pos = VEC2addVEC2R(player.pos,rel_pos);
+				particle.state[particle.cnt].size = 1.0f;
+				particle.state[particle.cnt].health = 40;
+				particle.state[particle.cnt++].vel = velocity;
 			}
 			VEC2mul(&enemy.state[i].vel,PR_FRICTION);	
 			if(enemy.state[i].pos.x < ENEMY_SIZE || enemy.state[i].pos.x > SIM_SIZE-ENEMY_SIZE-1.0f ||
@@ -289,25 +335,41 @@ void gametick(){
 			case PARTICLE_ENERGY_PARENT:
 				VEC2addVEC2(&particle.state[i].pos,particle.state[i].vel);
 				collision(&particle.state[i].pos,particle.state[i].vel,particle.state[i].size/2.0f);
-				if(VEC2distance(particle.state[i].pos,player.pos)<0.5f){
-					player.energy += 1000;
+				if(VEC2distance(particle.state[i].pos,player.pos)<1.0f){
+					player.energy += 200;
 					if(player.energy>ENERGY_MAX) player.energy = ENERGY_MAX;
 					ENTITY_REMOVE(particle,i);
 					break;
 				}	
 				VEC2mul(&particle.state[i].vel,PR_FRICTION);
-				VEC2addVEC2(&particle.state[i].vel,entityPull(particle.state[i].pos,player.pos,0.1f));
+				VEC2addVEC2(&particle.state[i].vel,entityPull(particle.state[i].pos,player.pos,1.0f));
 				break;
 			}
 		}
 		for(u4 i = 0;i < block_entity.cnt;i++){
 			if(!block_entity.state[i].countdown--){
-				particle.state[particle.cnt].size = 0.0f;
-				particle.state[particle.cnt].color = (VEC3){0.0f,0.0f,0.0f};
-				particle.state[particle.cnt].type = PARTICLE_ENERGY_INFANT;
-				particle.state[particle.cnt].health = 60*2;
-				particle.state[particle.cnt++].pos = (VEC2){block_entity.state[i].pos.x+0.5f,block_entity.state[i].pos.y+0.5f};
-				block_entity.state[i].countdown = 60*15;
+				if(particle.cnt < 128){
+					particle.state[particle.cnt].size = 0.0f;
+					particle.state[particle.cnt].color = VEC3_ZERO;
+					particle.state[particle.cnt].type = PARTICLE_ENERGY_INFANT;
+					particle.state[particle.cnt].health = 60*2;
+					particle.state[particle.cnt++].pos = (VEC2){block_entity.state[i].pos.x+0.5f,block_entity.state[i].pos.y+0.5f};
+				}
+				block_entity.state[i].countdown = 60*5;
+			}
+		}
+		if(!player.health){
+			if(!player.respawn_countdown--){
+				player.pos = (VEC2)PLAYER_SPAWN;
+				player.health = HEALTH_MAX;
+				player.energy = ENERGY_MAX;
+				worldLoadSpawn();
+				enemy.cnt = 0;
+				particle.cnt = 0;
+				bullet.cnt = 0;
+				laser.cnt = 0;
+				chunk.cnt = 0;
+				gl_queue.message[gl_queue.cnt++].id = GLMESSAGE_WHOLE_MAPEDIT;
 			}
 		}
 		if(player.weapon_cooldown) player.weapon_cooldown--;
@@ -343,26 +405,8 @@ void main(){
 	RegisterClassA(&wndclass);
 	window = CreateWindowExA(0,"class","hello",WS_VISIBLE | WS_POPUP,WNDOFFX,WNDOFFY,WNDY,WNDX,0,0,wndclass.hInstance,0);
 	dc = GetDC(window);
-	for(u4 x = 0;x <= CHUNK_SIZE*2;x+=CHUNK_SIZE){
-		for(u4 y = 0;y <= SIM_SIZE*CHUNK_SIZE*2;y+=SIM_SIZE*CHUNK_SIZE){
-			genMap((IVEC2){0,0},x+y,7,-1.0f);
-		}
-	}
-	//make sure the spawnarea is clean
-	for(u4 x = player.pos.x - 3.0f;x < player.pos.x + 3.0f;x++){
-		for(u4 y = player.pos.y - 3.0f;y < player.pos.y + 3.0f;y++){
-			map[x*SIM_SIZE+y] = 0;
-		}
-	}
-	map[SIM_SIZE*SIM_SIZE/2+SIM_SIZE/2] = BLOCK_SPRINKLER;
-	for(u4 i = 0;i < SIM_SIZE_SURFACE;i++){
-		switch(map[i]){
-		case BLOCK_SPRINKLER:
-			block_entity.state[block_entity.cnt].pos = (IVEC2){i/SIM_SIZE,i%SIM_SIZE};
-			block_entity.state[block_entity.cnt++].countdown = 0;
-			break;
-		}
-	}
+	client_resolution = (IVEC2){GetSystemMetrics(SM_CXSCREEN),GetSystemMetrics(SM_CYSCREEN)};
+	worldLoadSpawn();
 	genTextures();
 	CreateThread(0,0,render,0,0,0);
 	CreateThread(0,0,gametick,0,0,0);

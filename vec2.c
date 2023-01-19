@@ -1,6 +1,7 @@
 #include "vec2.h"
 #include "math.h"
 #include "tmath.h"
+
 VEC2 VEC2negR(VEC2 p){
 	return (VEC2){-p.x,-p.y};
 }

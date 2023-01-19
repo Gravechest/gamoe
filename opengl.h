@@ -7,15 +7,10 @@
 #include "vec3.h"
 #include "ivec2.h"
 
-#define BLOCK_AIR       0
-#define BLOCK_NORMAL    1
-#define BLOCK_LIGHT     2
-#define BLOCK_ENTITY    3
-#define BLOCK_SPRINKLER 4
-
 #define VSYNC 0
 
 #define GUI_ENERGY (VEC2){0.18f,0.9f}
+#define GUI_HEALTH (VEC2){0.18f,0.8f}
 
 #define RD_CMP 0.5625f
 #define RD_CONVERT(X) (X*0.0072f)
@@ -37,6 +32,10 @@
 
 #define GL_R8 0x8229
 
+#define GLMESSAGE_SINGLE_MAPEDIT 0
+#define GLMESSAGE_WND_SIZECHANGE 1
+#define GLMESSAGE_WHOLE_MAPEDIT  2
+
 typedef struct{
 	VEC2 pos;
 	VEC2 size;
@@ -47,7 +46,6 @@ typedef struct{
 	u4 id;
 	union{
 		IVEC2 pos;
-		COLORRECT rect;
 	};
 }OPENGLMESSAGE;
 

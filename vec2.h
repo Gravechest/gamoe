@@ -5,6 +5,8 @@
 #define VEC2_X 0
 #define VEC2_Y 1
 
+#define VEC2_ZERO (VEC2){0.0f,0.0f}
+
 typedef struct{
 	union{
 		struct{

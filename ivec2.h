@@ -3,6 +3,11 @@
 #include "small_types.h"
 
 typedef struct{
-	i4 x;
-	i4 y;
+	union{
+		struct{
+			i4 x;
+			i4 y;
+		};
+		i4 a[2];
+	};
 }IVEC2;

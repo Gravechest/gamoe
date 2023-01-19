@@ -5,9 +5,25 @@
 #include "chunk.h"
 #include "source.h"
 #include "opengl.h"
+#include "tmath.h"
 
 CHUNKHUB  chunk;
 IVEC2 current_chunk;
+
+void genMap(IVEC2 crd,u4 offset,u4 depth,f4 value){
+	if(!depth){
+		if(value > 0.0f) map[crd.x*SIM_SIZE+crd.y+offset] = BLOCK_NORMAL;
+		return;
+	}
+	else{
+		crd.x *= 2;
+		crd.y *= 2;
+		genMap((IVEC2){crd.x  ,crd.y  },offset,depth-1,value+tRnd()-1.5f);
+		genMap((IVEC2){crd.x+1,crd.y  },offset,depth-1,value+tRnd()-1.5f);
+		genMap((IVEC2){crd.x  ,crd.y+1},offset,depth-1,value+tRnd()-1.5f);
+		genMap((IVEC2){crd.x+1,crd.y+1},offset,depth-1,value+tRnd()-1.5f);
+	}
+}
 
 i4 findChunk(IVEC2 crd){
 	union icrd{
@@ -80,7 +96,14 @@ void loadChunk(IVEC2 crd){
 	else{
 		for(u4 x = 0;x < CHUNK_SIZE;x++){
 			for(u4 y = 0;y < CHUNK_SIZE;y++){
-				map[y*SIM_SIZE+x+offset] = chunk.state[chunkID].chunk[y*CHUNK_SIZE+x];
+				u4 m_loc = y*SIM_SIZE+x+offset;
+				map[m_loc] = chunk.state[chunkID].chunk[y*CHUNK_SIZE+x];
+				switch(map[y*SIM_SIZE+x+offset]){
+				case BLOCK_SPRINKLER:
+					block_entity.state[block_entity.cnt].pos = (IVEC2){m_loc/SIM_SIZE,m_loc%SIM_SIZE};
+					block_entity.state[block_entity.cnt++].countdown = 0;
+					break;
+				}
 			}
 		}
 	}
@@ -92,6 +115,36 @@ void moveEntities(f4 direction,u4 axis){
 	CHUNK_ENTITY_MOVE(enemy,ENEMY_SIZE);
 	CHUNK_ENTITY_MOVE(bullet,BULLET_SIZE);
 	CHUNK_ENTITY_MOVE(particle,2.0f);
+
+	for(u4 i = 0;i < block_entity.cnt;i++){
+		block_entity.state[i].pos.a[axis] += direction;
+		if(block_entity.state[i].pos.a[axis]<0||block_entity.state[i].pos.a[axis]>=SIM_SIZE){
+			ENTITY_REMOVE(block_entity,i);
+		}
+	}
+}
+
+void worldLoadSpawn(){
+	for(u4 x = 0;x <= CHUNK_SIZE*2;x+=CHUNK_SIZE){
+		for(u4 y = 0;y <= SIM_SIZE*CHUNK_SIZE*2;y+=SIM_SIZE*CHUNK_SIZE){
+			genMap((IVEC2){0,0},x+y,7,-1.0f);
+		}
+	}
+	//make sure the spawnarea is clean
+	for(u4 x = player.pos.x - 3.0f;x < player.pos.x + 3.0f;x++){
+		for(u4 y = player.pos.y - 3.0f;y < player.pos.y + 3.0f;y++){
+			map[x*SIM_SIZE+y] = 0;
+		}
+	}
+	map[SIM_SIZE*SIM_SIZE/2+SIM_SIZE/2] = BLOCK_SPRINKLER;
+	for(u4 i = 0;i < SIM_SIZE_SURFACE;i++){
+		switch(map[i]){
+		case BLOCK_SPRINKLER:
+			block_entity.state[block_entity.cnt].pos = (IVEC2){i/SIM_SIZE,i%SIM_SIZE};
+			block_entity.state[block_entity.cnt++].countdown = 0;
+			break;
+		}
+	}
 }
 
 void worldLoadEast(){
