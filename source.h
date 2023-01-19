@@ -7,12 +7,22 @@
 
 #pragma comment(lib,"Winmm.lib")
 
+#define WEAPON_LASER_COST 700
+
+#define ENERGY_MAX 6000
+
+#define PARTICLE_NORMAL        0
+#define PARTICLE_ENERGY_INFANT 1
+#define PARTICLE_ENERGY_PARENT 2
+
 #define ENTITY_REMOVE(TYPE,ID) for(u4 I = ID--;I < TYPE.cnt;I++) TYPE.state[I] = TYPE.state[I+1]; TYPE.cnt--;
 
-#define RES 128
-#define MAP (RES*3)
+#define CHUNK_SIZE 128
+#define SIM_SIZE (CHUNK_SIZE*3)
+#define CHUNK_SIZE_SURFACE (CHUNK_SIZE*CHUNK_SIZE)
+#define SIM_SIZE_SURFACE (SIM_SIZE*SIM_SIZE)
 
-#define PLAYER_MOUSE(X) (VEC2){X.x/8.4375f,RES-X.y/8.4375f}
+#define PLAYER_MOUSE(X) (VEC2){X.x/8.4375f,CHUNK_SIZE-X.y/8.4375f}
 
 #define LASER_LUMINANCE (VEC3){0.04f,0.005f,0.03f}
 #define RD_LASER_LUMINANCE (VEC3){LASER_LUMINANCE.r*8.0f,LASER_LUMINANCE.g*8.0f,LASER_LUMINANCE.b*8.0f}
@@ -56,7 +66,8 @@ typedef struct{
 }RGB;
 
 typedef struct{
-	f4 energy;
+	u4 flashlight;
+	u4 energy;
 	u4 weapon_cooldown;
 	u4 lightBulletCnt;
 	VEC2 vel;
@@ -105,6 +116,8 @@ typedef struct{
 	VEC2 pos;
 	VEC2 vel;
 	u4 health;
+	u4 type;
+	f4 size;
 }PARTICLE;
 
 typedef struct{
@@ -112,10 +125,19 @@ typedef struct{
 	PARTICLE* state;
 }PARTICLEHUB;
 
+typedef struct{
+	u4 countdown;
+	IVEC2 pos;
+}BLOCKENTITY;
+
+typedef struct{
+	u4 cnt;
+	BLOCKENTITY* state;
+}BLOCKENTITYHUB;
+
 void genMap(IVEC2 crd,u4 offset,u4 depth,f4 value);
 VEC2 getCursorPos();
 VEC2 getCursorPosMap();
-f4 iSquare(VEC2 ro,VEC2 rd,f4 size);
 
 extern u1* map;
 extern LASERHUB  laser;

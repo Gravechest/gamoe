@@ -16,6 +16,8 @@ typedef struct{
 }VEC2;
 
 f4 VEC2length(VEC2 p);
+f4 VEC2distance(VEC2 p,VEC2 p2);
+f4 VEC2dotR(VEC2 p,VEC2 p2);
 
 void VEC2addVEC2(VEC2* p,VEC2 p2);
 void VEC2subVEC2(VEC2* p,VEC2 p2);
@@ -38,3 +40,4 @@ VEC2 VEC2subVEC2R(VEC2 p,VEC2 p2);
 VEC2 VEC2divR(VEC2 p,f4 d);
 VEC2 VEC2normalizeR(VEC2 p);
 VEC2 VEC2addR(VEC2 p,f4 a);
+VEC2 VEC2rndR();

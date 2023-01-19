@@ -7,10 +7,11 @@
 #include "vec3.h"
 #include "ivec2.h"
 
-#define BLOCK_AIR    0
-#define BLOCK_NORMAL 1
-#define BLOCK_LIGHT  2
-#define BLOCK_ENTITY 3
+#define BLOCK_AIR       0
+#define BLOCK_NORMAL    1
+#define BLOCK_LIGHT     2
+#define BLOCK_ENTITY    3
+#define BLOCK_SPRINKLER 4
 
 #define VSYNC 0
 

@@ -37,7 +37,7 @@ void storeChunk(IVEC2 crd){
 		u8 id;
 	}icrd;
 	icrd.crd = crd;
-	u4 offset = (crd.x-current_chunk.x+1)*RES+(crd.y-current_chunk.y+1)*MAP*RES;
+	u4 offset = (crd.x-current_chunk.x+1)*CHUNK_SIZE+(crd.y-current_chunk.y+1)*SIM_SIZE*CHUNK_SIZE;
 	i4 chunkID = findChunk(crd);
 	if(chunkID==-1){
 		i4 location = 0,bound = chunk.cnt-1;
@@ -50,22 +50,22 @@ void storeChunk(IVEC2 crd){
 				bound = k - 1;
 			}
 		}
-		chunk.state[location].chunk = HeapAlloc(GetProcessHeap(),0,RES*RES);
+		chunk.state[location].chunk = HeapAlloc(GetProcessHeap(),0,CHUNK_SIZE*CHUNK_SIZE);
 		for(i4 i = chunk.cnt;i >= location;i--){
 			chunk.state[i+1] = chunk.state[i];
 		}
 		chunk.state[location].crd = icrd.crd;
-		for(u4 x = 0;x < RES;x++){
-			for(u4 y = 0;y < RES;y++){
-				chunk.state[location].chunk[x*RES+y] = map[y*MAP+x+offset];
+		for(u4 x = 0;x < CHUNK_SIZE;x++){
+			for(u4 y = 0;y < CHUNK_SIZE;y++){
+				chunk.state[location].chunk[x*CHUNK_SIZE+y] = map[y*SIM_SIZE+x+offset];
 			}
 		}
 		chunk.cnt++;
 	}
 	else{
-		for(u4 x = 0;x < RES;x++){
-			for(u4 y = 0;y < RES;y++){
-				chunk.state[chunkID].chunk[x*RES+y] = map[y*MAP+x+offset];
+		for(u4 x = 0;x < CHUNK_SIZE;x++){
+			for(u4 y = 0;y < CHUNK_SIZE;y++){
+				chunk.state[chunkID].chunk[x*CHUNK_SIZE+y] = map[y*SIM_SIZE+x+offset];
 			}
 		}
 	}
@@ -73,14 +73,14 @@ void storeChunk(IVEC2 crd){
 
 void loadChunk(IVEC2 crd){
 	u4 chunkID = findChunk((IVEC2){current_chunk.x+crd.x,current_chunk.y+crd.y});
-	u4 offset = (crd.x+1)*RES + (crd.y+1)*MAP*RES;
+	u4 offset = (crd.x+1)*CHUNK_SIZE + (crd.y+1)*SIM_SIZE*CHUNK_SIZE;
 	if(chunkID==-1){
 		genMap((IVEC2){0,0},offset,7,-1.0f);
 	}
 	else{
-		for(u4 x = 0;x < RES;x++){
-			for(u4 y = 0;y < RES;y++){
-				map[y*MAP+x+offset] = chunk.state[chunkID].chunk[y*RES+x];
+		for(u4 x = 0;x < CHUNK_SIZE;x++){
+			for(u4 y = 0;y < CHUNK_SIZE;y++){
+				map[y*SIM_SIZE+x+offset] = chunk.state[chunkID].chunk[y*CHUNK_SIZE+x];
 			}
 		}
 	}
@@ -98,10 +98,10 @@ void worldLoadEast(){
 	for(i4 i = current_chunk.y-1;i <= current_chunk.y+1;i++){
 		storeChunk((IVEC2){current_chunk.x-1,i});
 	}
-	moveEntities(-RES,VEC2_X);
-	for(u4 x = 0;x < MAP;x++){
-		for(u4 y = 0;y < RES*2;y++){
-			map[x*MAP+y] = map[x*MAP+y+RES];
+	moveEntities(-CHUNK_SIZE,VEC2_X);
+	for(u4 x = 0;x < SIM_SIZE;x++){
+		for(u4 y = 0;y < CHUNK_SIZE*2;y++){
+			map[x*SIM_SIZE+y] = map[x*SIM_SIZE+y+CHUNK_SIZE];
 		}
 	}
 	current_chunk.x++;
@@ -112,10 +112,10 @@ void worldLoadWest(){
 	for(i4 i = current_chunk.y-1;i <= current_chunk.y+1;i++){
 		storeChunk((IVEC2){current_chunk.x+1,i});
 	}
-	moveEntities(RES,VEC2_X);
-	for(i4 x = MAP-1;x >= 0;x--){
-		for(i4 y = RES*2-1;y >= 0;y--){
-			map[x*MAP+y+RES] = map[x*MAP+y];
+	moveEntities(CHUNK_SIZE,VEC2_X);
+	for(i4 x = SIM_SIZE-1;x >= 0;x--){
+		for(i4 y = CHUNK_SIZE*2-1;y >= 0;y--){
+			map[x*SIM_SIZE+y+CHUNK_SIZE] = map[x*SIM_SIZE+y];
 		}
 	}
 	current_chunk.x--;
@@ -126,9 +126,9 @@ void worldLoadNorth(){
 	for(i4 i = current_chunk.x-1;i <= current_chunk.x+1;i++){
 		storeChunk((IVEC2){i,current_chunk.y-1});
 	}
-	moveEntities(-RES,VEC2_Y);
-	memcpy(map,map+MAP*RES,MAP*RES);
-	memcpy(map+MAP*RES,map+MAP*RES*2,MAP*RES);
+	moveEntities(-CHUNK_SIZE,VEC2_Y);
+	memcpy(map,map+SIM_SIZE*CHUNK_SIZE,SIM_SIZE*CHUNK_SIZE);
+	memcpy(map+SIM_SIZE*CHUNK_SIZE,map+SIM_SIZE*CHUNK_SIZE*2,SIM_SIZE*CHUNK_SIZE);
 	current_chunk.y++;
 	for(i4 x = -1;x <= 1;x++) loadChunk((IVEC2){x,1});
 }
@@ -137,9 +137,9 @@ void worldLoadSouth(){
 	for(i4 i = current_chunk.x-1;i <= current_chunk.x+1;i++){
 		storeChunk((IVEC2){i,current_chunk.y+1});
 	}
-	moveEntities(RES,VEC2_Y);
-	memcpy(map+MAP*RES*2,map+MAP*RES,MAP*RES);
-	memcpy(map+MAP*RES,map,MAP*RES);
+	moveEntities(CHUNK_SIZE,VEC2_Y);
+	memcpy(map+SIM_SIZE*CHUNK_SIZE*2,map+SIM_SIZE*CHUNK_SIZE,SIM_SIZE*CHUNK_SIZE);
+	memcpy(map+SIM_SIZE*CHUNK_SIZE,map,SIM_SIZE*CHUNK_SIZE);
 	current_chunk.y--;
 	for(i4 x = -1;x <= 1;x++) loadChunk((IVEC2){x,-1});
 }

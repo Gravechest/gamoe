@@ -1,10 +1,6 @@
 #include "vec2.h"
 #include "math.h"
-
-f4 VEC2length(VEC2 p){
-	return sqrtf(p.x*p.x+p.y*p.y);
-}
-
+#include "tmath.h"
 VEC2 VEC2negR(VEC2 p){
 	return (VEC2){-p.x,-p.y};
 }
@@ -93,4 +89,20 @@ VEC2 VEC2rotR(VEC2 p,f4 rot){
     p.y = sinf(rot) * p.x + cosf(rot) * p.y;
 	p.x = b;
 	return p;
+}
+
+VEC2 VEC2rndR(){
+	return VEC2normalizeR((VEC2){tRnd()-1.5f,tRnd()-1.5f});
+}
+
+f4 VEC2dotR(VEC2 p,VEC2 p2){
+	return p.x*p2.x+p.y*p2.y;
+}
+
+f4 VEC2length(VEC2 p){
+	return sqrtf(p.x*p.x+p.y*p.y);
+}
+
+f4 VEC2distance(VEC2 p,VEC2 p2){
+	return VEC2length(VEC2subVEC2R(p,p2));
 }

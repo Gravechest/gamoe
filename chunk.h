@@ -5,7 +5,7 @@
 
 #define CHUNK_ENTITY_MOVE(TYPE,SIZE) for(u4 J = 0;J < TYPE.cnt;J++){                                     \
 		TYPE.state[J].pos.a[axis] += direction;                                                          \
-		if(TYPE.state[J].pos.a[axis] < SIZE || TYPE.state[J].pos.a[axis] > MAP-SIZE-1.0f){               \
+		if(TYPE.state[J].pos.a[axis] < SIZE || TYPE.state[J].pos.a[axis] > SIM_SIZE-SIZE-1.0f){               \
 			ENTITY_REMOVE(TYPE,J)                                                                        \
 		}                                                                                                \
 	}
