@@ -12,13 +12,13 @@ void mapIlluminate(RAY2D ray,VEC3 color){
 			vramf[ray.square_pos.y*camera.zoom+ray.square_pos.x].r+=color.r;
 			vramf[ray.square_pos.y*camera.zoom+ray.square_pos.x].g+=color.g;
 			vramf[ray.square_pos.y*camera.zoom+ray.square_pos.x].b+=color.b;
-			for(u4 i = 0;i < enemy.cnt;i++){
+			for(u4 i = 0;i < entity_dark.cnt;i++){
 				f4 hit_area = (ENEMY_SIZE/2.0f+1.0f);
-				VEC2 enemy_pos_rel = VEC2subVEC2R(VEC2subVEC2R(enemy.state[i].pos,camera.pos),(VEC2){ray.square_pos.x,ray.square_pos.y});
-				if(enemy_pos_rel.x - hit_area < 0.0f && enemy_pos_rel.x + hit_area > 0.0f &&
-				enemy_pos_rel.y - hit_area < 0.0f && enemy_pos_rel.y + hit_area > 0.0f){
-					if(rayIntersectSquare(VEC2addVEC2R(ray.pos,camera.pos),ray.dir,enemy.state[i].pos,ENEMY_SIZE*0.5) != -1.0f){
-						VEC3addVEC3(&enemy.state[i].luminance,color);
+				VEC2 entity_dark_pos_rel = VEC2subVEC2R(VEC2subVEC2R(entity_dark.state[i].pos,camera.pos),(VEC2){ray.square_pos.x,ray.square_pos.y});
+				if(entity_dark_pos_rel.x - hit_area < 0.0f && entity_dark_pos_rel.x + hit_area > 0.0f &&
+				entity_dark_pos_rel.y - hit_area < 0.0f && entity_dark_pos_rel.y + hit_area > 0.0f){
+					if(rayIntersectSquare(entity_dark.state[i].pos,ray.dir,VEC2addVEC2R(ray.pos,camera.pos),ENEMY_SIZE*0.5) != -1.0f){
+						VEC3addVEC3(&entity_dark.state[i].luminance,color);
 						return;
 					}
 				}

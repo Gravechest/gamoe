@@ -100,8 +100,8 @@ void loadChunk(IVEC2 crd){
 				map[m_loc] = chunk.state[chunkID].chunk[y*CHUNK_SIZE+x];
 				switch(map[y*SIM_SIZE+x+offset]){
 				case BLOCK_SPRINKLER:
-					block_entity.state[block_entity.cnt].pos = (IVEC2){m_loc/SIM_SIZE,m_loc%SIM_SIZE};
-					block_entity.state[block_entity.cnt++].countdown = 0;
+					entity_block.state[entity_block.cnt].pos = (IVEC2){m_loc/SIM_SIZE,m_loc%SIM_SIZE};
+					entity_block.state[entity_block.cnt++].countdown = 0;
 					break;
 				}
 			}
@@ -112,14 +112,13 @@ void loadChunk(IVEC2 crd){
 void moveEntities(f4 direction,u4 axis){
 	camera.pos.a[axis] += direction;
 	player.pos.a[axis] += direction;
-	CHUNK_ENTITY_MOVE(enemy,ENEMY_SIZE);
-	CHUNK_ENTITY_MOVE(bullet,BULLET_SIZE);
-	CHUNK_ENTITY_MOVE(particle,2.0f);
+	CHUNK_ENTITY_MOVE(entity_dark,ENEMY_SIZE);
+	CHUNK_ENTITY_MOVE(entity_light,2.0f);
 
-	for(u4 i = 0;i < block_entity.cnt;i++){
-		block_entity.state[i].pos.a[axis] += direction;
-		if(block_entity.state[i].pos.a[axis]<0||block_entity.state[i].pos.a[axis]>=SIM_SIZE){
-			ENTITY_REMOVE(block_entity,i);
+	for(u4 i = 0;i < entity_block.cnt;i++){
+		entity_block.state[i].pos.a[axis] += direction;
+		if(entity_block.state[i].pos.a[axis]<0||entity_block.state[i].pos.a[axis]>=SIM_SIZE){
+			ENTITY_REMOVE(entity_block,i);
 		}
 	}
 }
@@ -140,8 +139,8 @@ void worldLoadSpawn(){
 	for(u4 i = 0;i < SIM_SIZE_SURFACE;i++){
 		switch(map[i]){
 		case BLOCK_SPRINKLER:
-			block_entity.state[block_entity.cnt].pos = (IVEC2){i/SIM_SIZE,i%SIM_SIZE};
-			block_entity.state[block_entity.cnt++].countdown = 0;
+			entity_block.state[entity_block.cnt].pos = (IVEC2){i/SIM_SIZE,i%SIM_SIZE};
+			entity_block.state[entity_block.cnt++].countdown = 0;
 			break;
 		}
 	}

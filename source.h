@@ -93,16 +93,6 @@ typedef struct{
 typedef struct{
 	VEC2 vel;
 	VEC2 pos;
-}BULLET;
-
-typedef struct{
-	u4 cnt;
-	BULLET* state;
-}BULLETHUB;
-
-typedef struct{
-	VEC2 vel;
-	VEC2 pos;
 	VEC3 luminance;
 }ENEMY;
 
@@ -154,10 +144,9 @@ RGB* loadBMP(u1* name);
 
 extern u1* map;
 extern LASERHUB  laser;
-extern PARTICLEHUB particle;
-extern BULLETHUB bullet;
-extern ENEMYHUB  enemy;
-extern BLOCKENTITYHUB block_entity;
+extern PARTICLEHUB entity_light;
+extern ENEMYHUB  entity_dark;
+extern BLOCKENTITYHUB entity_block;
 extern PLAYER player;
 extern CAMERA camera;
 extern CAMERA camera_new;

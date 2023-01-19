@@ -81,5 +81,5 @@ void (*glUniform3f)(i4 loc,f4 v1,f4 v2,f4 v3);
 void openglInit();
 void opengl();
 
-extern u4 sprite_shader,map_shader,enemy_shader,color_shader,particle_shader;
+extern u4 sprite_shader,map_shader,entity_dark_shader,color_shader,particle_shader;
 extern OPENGLQUEUE gl_queue;

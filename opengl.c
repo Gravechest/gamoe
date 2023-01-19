@@ -9,12 +9,12 @@
 #include "draw.h"
 #include "tmath.h"
 #include "chunk.h"
-#include "ivec2.h"
+#include "ivec2.h"	
 #include "lighting.h"
 
 u4 VBO;
 u4 texture,map_texture,sprite_texture,font_texture;
-u4 sprite_shader,map_shader,enemy_shader,color_shader,particle_shader,font_shader;
+u4 sprite_shader,map_shader,entity_dark_shader,color_shader,particle_shader,font_shader;
 OPENGLQUEUE gl_queue;
 RGB* font_texture_data;
 
@@ -71,12 +71,12 @@ void openglInit(){
 
 	wglSwapIntervalEXT(VSYNC);
 
-	sprite_shader   = loadShader("shader/sprite.frag"  ,"shader/vertex.vert");
-	map_shader      = loadShader("shader/map.frag"     ,"shader/vertex.vert");
-	enemy_shader    = loadShader("shader/enemy.frag"   ,"shader/vertex.vert");
-	color_shader    = loadShader("shader/color.frag"   ,"shader/vertex.vert");
-	particle_shader = loadShader("shader/particle.frag","shader/vertex.vert");
-	font_shader     = loadShader("shader/font.frag"    ,"shader/vertex.vert");
+	sprite_shader       = loadShader("shader/sprite.frag","shader/vertex.vert");
+	map_shader          = loadShader("shader/map.frag","shader/vertex.vert");
+	entity_dark_shader  = loadShader("shader/entity_dark.frag","shader/vertex.vert");
+	color_shader        = loadShader("shader/color.frag","shader/vertex.vert");
+	particle_shader     = loadShader("shader/particle.frag","shader/vertex.vert");
+	font_shader         = loadShader("shader/font.frag","shader/vertex.vert");
 
 	font_texture_data = loadBMP("img/font.bmp");
 
@@ -110,8 +110,8 @@ void openglInit(){
 
 	glActiveTexture(GL_TEXTURE2);
 	glBindTexture(GL_TEXTURE_2D,sprite_texture);
-	glUseProgram(enemy_shader);
-	glUniform1i(glGetUniformLocation(enemy_shader,"t_texture"),2);
+	glUseProgram(entity_dark_shader);
+	glUniform1i(glGetUniformLocation(entity_dark_shader,"t_texture"),2);
 	glUseProgram(sprite_shader);
 	glUniform1i(glGetUniformLocation(sprite_shader,"t_texture"),2);
 	glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_NEAREST);
@@ -179,10 +179,10 @@ void opengl(){
 		}
 	}
 	entity_shadows_cnt = 0;
-	for(u4 i = 0;i < enemy.cnt;i++){
+	for(u4 i = 0;i < entity_dark.cnt;i++){
 		f4 dv = ENEMY_SIZE/(u4)(ENEMY_SIZE+1);
-		for(f4 x = enemy.state[i].pos.x-ENEMY_SIZE*0.5f;x <= enemy.state[i].pos.x+ENEMY_SIZE*0.5f;x+=dv){
-			for(f4 y = enemy.state[i].pos.y-ENEMY_SIZE*0.5f;y <= enemy.state[i].pos.y+ENEMY_SIZE*0.5f;y+=dv){
+		for(f4 x = entity_dark.state[i].pos.x-ENEMY_SIZE*0.5f;x <= entity_dark.state[i].pos.x+ENEMY_SIZE*0.5f;x+=dv){
+			for(f4 y = entity_dark.state[i].pos.y-ENEMY_SIZE*0.5f;y <= entity_dark.state[i].pos.y+ENEMY_SIZE*0.5f;y+=dv){
 				if(map[(u4)y*SIM_SIZE+(u4)x]==BLOCK_AIR){
 					map[(u4)y*SIM_SIZE+(u4)x] = BLOCK_ENTITY;
 					entity_shadows[entity_shadows_cnt++] = (IVEC2){x,y};
@@ -194,11 +194,8 @@ void opengl(){
 		VEC2 angle = VEC2subVEC2R(getCursorPosMap(),VEC2subVEC2R(player.pos,camera.pos));
 		lightsourcePartEmit(PLAYER_LUMINANCE,player.pos,angle,128,0.15f);
 	}
-	for(u4 i = 0;i < bullet.cnt;i++){
-		lightsourceEmit(BULLET_LUMINANCE,bullet.state[i].pos,1024);
-	}
-	for(u4 i = 0;i < particle.cnt;i++){
-		lightsourceEmit(particle.state[i].color,particle.state[i].pos,1024);
+	for(u4 i = 0;i < entity_light.cnt;i++){
+		lightsourceEmit(entity_light.state[i].color,entity_light.state[i].pos,1024);
 	}
 	for(u4 i = 0;i < laser.cnt;i++){
 		VEC2 normalize_pos = VEC2subVEC2R(laser.state[i].pos_dst,laser.state[i].pos_org);
@@ -206,9 +203,10 @@ void opengl(){
 		u4 dst = VEC2length(normalize_pos);
 		VEC2 pos = laser.state[i].pos_org;
 		for(u4 j = 0;j < dst;j++){
-			lightsourceEmit(LASER_LUMINANCE,pos,128);
+			lightsourceEmit(LASER_LUMINANCE,pos,1024);
 			VEC2addVEC2(&pos,direction);
 		}
+		if(laser.state[i].health == 1) laser.state[i].health = 0;
 	}
 	for(u4 i = 0;i < entity_shadows_cnt;i++){
 		map[entity_shadows[i].y*SIM_SIZE+entity_shadows[i].x] = BLOCK_AIR;
@@ -221,24 +219,21 @@ void opengl(){
 	drawMap();
 	glUseProgram(sprite_shader);
 	if(player.health) drawSprite(mapCrdToRenderCrd(player.pos),RD_SQUARE(PLAYER_SIZE),PLAYER_SPRITE);
-	for(u4 i = 0;i < bullet.cnt;i++){
-		drawSprite(mapCrdToRenderCrd(bullet.state[i].pos),RD_SQUARE(BULLET_SIZE),BULLET_SPRITE);
-	}
 	drawSprite(screenCrdToRenderCrd(getCursorPos()),RD_GUI(2.5f),CROSSHAIR_SPRITE);
-	glUseProgram(enemy_shader);
-	for(u4 i = 0;i < enemy.cnt;i++){
-		VEC2 relative_pos = VEC2subVEC2R(enemy.state[i].pos,camera.pos);
+	glUseProgram(entity_dark_shader);
+	for(u4 i = 0;i < entity_dark.cnt;i++){
+		VEC2 relative_pos = VEC2subVEC2R(entity_dark.state[i].pos,camera.pos);
 		if(relative_pos.x>0.0f&&relative_pos.x<camera.zoom&&relative_pos.y>0.0f&&relative_pos.y<camera.zoom){
-			VEC3mul(&enemy.state[i].luminance,0.025f);
-			drawEnemy(mapCrdToRenderCrd(enemy.state[i].pos),RD_SQUARE(ENEMY_SIZE),ENEMY_SPRITE,enemy.state[i].luminance);
-			enemy.state[i].luminance = (VEC3){0.0f,0.0f,0.0f};
+			VEC3mul(&entity_dark.state[i].luminance,0.025f);
+			drawEnemy(mapCrdToRenderCrd(entity_dark.state[i].pos),RD_SQUARE(ENEMY_SIZE),ENEMY_SPRITE,entity_dark.state[i].luminance);
+			entity_dark.state[i].luminance = (VEC3){0.0f,0.0f,0.0f};
 		}
 	}
 	glUseProgram(particle_shader);
-	for(u4 i = 0;i < particle.cnt;i++){
-		VEC2 pos   = mapCrdToRenderCrd(particle.state[i].pos);
-		VEC2 size  = RD_SQUARE(particle.state[i].size);
-		VEC3 color = VEC3normalizeR(particle.state[i].color);
+	for(u4 i = 0;i < entity_light.cnt;i++){
+		VEC2 pos   = mapCrdToRenderCrd(entity_light.state[i].pos);
+		VEC2 size  = RD_SQUARE(entity_light.state[i].size);
+		VEC3 color = VEC3mulR(VEC3normalizeR(entity_light.state[i].color),1.5f);
 		drawParticle(pos,size,color);
 	}
 	glUseProgram(color_shader);
@@ -257,7 +252,7 @@ void opengl(){
 		drawRect(pos,(VEC2){progress,0.005f},(VEC3){0.2f,0.5f,0.0f});
 	}
 	f4 energy = (f4)player.energy/5.0f/ENERGY_MAX;
-	drawRect((VEC2){GUI_ENERGY.x+0.16f+energy,GUI_ENERGY.y},(VEC2){energy,0.04f},(VEC3){0.2f,0.5f,0.0f});
+	drawRect((VEC2){GUI_ENERGY.x+0.16f+energy,GUI_ENERGY.y},(VEC2){energy,0.04f},(VEC3){0.6f,0.6f,0.12f});
 
 	f4 health = (f4)player.health/5.0f/HEALTH_MAX;
 	drawRect((VEC2){GUI_HEALTH.x+0.16f+health,GUI_HEALTH.y},(VEC2){health,0.04f},(VEC3){0.7f,0.2f,0.2f});

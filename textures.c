@@ -21,7 +21,7 @@ void genTextures(){
 		texture16[7*TEXTURE16_SIZE+i+TEXTURE16_SIZE*16].r = 200;
 		texture16[8*TEXTURE16_SIZE+i+TEXTURE16_SIZE*16].r = 200;
 	}
-	//generate enemy
+	//generate entity_dark
 	for(u4 x = 10;x < 14;x++){
 		for(u4 y = 2;y < 6;y++){
 			texture16[x*TEXTURE16_SIZE+y+TEXTURE16_SIZE*16+16].r = 255;

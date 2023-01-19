@@ -1,9 +1,7 @@
 #include <windows.h>
 #include <GL/gl.h>
-#include <stdio.h>
 
 #include "draw.h"
-#include "vec3.h"
 #include "tmath.h"
 #include "opengl.h"
 #include "source.h"
@@ -66,6 +64,7 @@ void drawString(VEC2 pos,VEC2 size,u1* string){
 }
 
 void drawEnemy(VEC2 pos,VEC2 size,VEC2 texture_pos,VEC3 luminance){
+	if(luminance.r == 0.0f && luminance.g == 0.0f && luminance.b == 0.0f) return;
 	sprite_quad.p1 = (VEC2){pos.x-size.x,pos.y-size.y};
 	sprite_quad.p2 = (VEC2){pos.x-size.x,pos.y+size.y};
 	sprite_quad.p3 = (VEC2){pos.x+size.x,pos.y-size.y};
@@ -78,7 +77,7 @@ void drawEnemy(VEC2 pos,VEC2 size,VEC2 texture_pos,VEC3 luminance){
 	sprite_quad.tc4 = (VEC2){texture_pos.x+0.5f,texture_pos.y+0.5f};
 	sprite_quad.tc5 = (VEC2){texture_pos.x     ,texture_pos.y+0.5f};
 	sprite_quad.tc6 = (VEC2){texture_pos.x+0.5f,texture_pos.y     };
-	glUniform3f(glGetUniformLocation(enemy_shader,"luminance"),luminance.r,luminance.g,luminance.b);
+	glUniform3f(glGetUniformLocation(entity_dark_shader,"luminance"),luminance.r,luminance.g,luminance.b);
 	glBufferData(GL_ARRAY_BUFFER,24 * sizeof(float),&sprite_quad,GL_DYNAMIC_DRAW);
 	glDrawArrays(GL_TRIANGLES,0,24);
 }
