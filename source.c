@@ -9,6 +9,7 @@
 #include "tmath.h"
 #include "textures.h"
 #include "ray.h"
+#include "entity_light.h"
 
 i4 proc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
 
@@ -35,9 +36,10 @@ PLAYER player = {.pos = PLAYER_SPAWN,.energy = ENERGY_MAX,.health = HEALTH_MAX};
 
 ENEMYHUB  entity_dark;
 LASERHUB  laser;
-PARTICLEHUB entity_light;
 BLOCKENTITYHUB entity_block;
 RGB* texture16;
+
+INVENTORY inventory = {.item_equiped = ITEM_MELEE};
 
 u1 fullscreen = 1;
 
@@ -64,19 +66,20 @@ RGB* loadBMP(u1* name){
 	return text;
 }
 
-VEC2 getCursorPos(){
-	POINT cursor;
-	GetCursorPos(&cursor);
-	ScreenToClient(window,&cursor);
-	return PLAYER_MOUSE(cursor);
-}
-
 VEC2 getCursorPosMap(){
 	POINT cursor;
 	GetCursorPos(&cursor);
 	ScreenToClient(window,&cursor);
-	cursor.y = WNDX-cursor.y;
-	return (VEC2){(f4)cursor.x*camera.zoom/WNDX,(f4)cursor.y*camera.zoom/WNDX};
+	cursor.y = client_resolution.x-cursor.y;
+	return (VEC2){(f4)cursor.x*camera.zoom/client_resolution.x,(f4)cursor.y*camera.zoom/client_resolution.x};
+}
+
+VEC2 getCursorPosGUI(){
+	POINT cursor;
+	GetCursorPos(&cursor);
+	ScreenToClient(window,&cursor);
+	cursor.y = client_resolution.x-cursor.y;
+	return (VEC2){(f4)cursor.x/client_resolution.y*2.0f-1.0f,(f4)cursor.y/client_resolution.x*2.0f-1.0f};
 }
 
 VEC2 entityPull(VEC2 entity,VEC2 destination,f4 power){
@@ -89,16 +92,37 @@ VEC2 entityPull(VEC2 entity,VEC2 destination,f4 power){
 u1 lineOfSight(VEC2 pos,VEC2 dir,u4 iterations){
 	RAY2D ray = ray2dCreate(pos,dir);
 	for(u4 i = 0;i < iterations;i++){
-		if(map[(u4)(ray.square_pos.y)*SIM_SIZE+(u4)(ray.square_pos.x)]==BLOCK_NORMAL) return 0;
+		if(map[(u4)(ray.square_pos.y)*SIM_SIZE+(u4)(ray.square_pos.x)]==BLOCK_NORMAL) return FALSE;
 		ray2dIterate(&ray);
 	}
-	return 1;
+	return TRUE;
+}
+
+void spawnLootOrb(u1 type,VEC2 direction,VEC2 position){
+	entity_light.state[entity_light.cnt].size = 0.5f;
+	entity_light.state[entity_light.cnt].type = LOOT_PARENT;
+	entity_light.state[entity_light.cnt].loot_type = type;
+	switch(type){
+	case LOOT_ENERGY:
+		entity_light.state[entity_light.cnt].color = LOOT_ENERGY_COLOR_PARENT;
+		break;
+	case LOOT_HEALTH:
+		entity_light.state[entity_light.cnt].color = LOOT_HEALTH_COLOR_PARENT;
+		break;
+	case LOOT_SCRAP:
+		entity_light.state[entity_light.cnt].color = LOOT_SCRAP_COLOR_PARENT;
+		break;
+	}
+	entity_light.state[entity_light.cnt].vel = VEC2mulR(VEC2rotR(direction,(tRnd()-1.5f)*0.5f),(tRnd()-0.5f)*0.01f);
+	entity_light.state[entity_light.cnt].health = 120*60;
+	entity_light.state[entity_light.cnt++].pos = position;
 }
 
 i4 proc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam){
 	switch(msg){
 	case WM_SIZE:
-		gl_queue.message[gl_queue.cnt].pos = (IVEC2){lParam>>16,lParam&0xffff}; 
+		client_resolution = (IVEC2){lParam>>16,lParam&0xffff};
+		gl_queue.message[gl_queue.cnt].pos = (IVEC2){client_resolution.x,client_resolution.y}; 
 		gl_queue.message[gl_queue.cnt++].id = GLMESSAGE_WND_SIZECHANGE;
 		break;
 	case WM_KEYDOWN:
@@ -107,21 +131,12 @@ i4 proc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam){
 			fullscreen ^= 1;
 			if(fullscreen){
 				SetWindowLongPtrA(window,GWL_STYLE,WS_VISIBLE|WS_POPUP);
-				SetWindowPos(window,0,0,0,client_resolution.x,client_resolution.y,0);
-				gl_queue.message[gl_queue.cnt].pos = client_resolution; 
-				gl_queue.message[gl_queue.cnt++].id = GLMESSAGE_WND_SIZECHANGE;
+				SetWindowPos(window,0,0,0,GetSystemMetrics(SM_CXSCREEN),GetSystemMetrics(SM_CYSCREEN),0);
 			}
 			else{
 				SetWindowLongPtrA(window,GWL_STYLE,WS_VISIBLE|WS_MAXIMIZEBOX|WS_MINIMIZEBOX|WS_SYSMENU|WS_CAPTION|WS_SIZEBOX);
 				SetWindowPos(window,0,100,100,1000,560,0);
-				gl_queue.message[gl_queue.cnt].pos = (IVEC2){900,460}; 
-				gl_queue.message[gl_queue.cnt++].id = GLMESSAGE_WND_SIZECHANGE;
 			}
-			break;
-		case VK_L:
-			map[(u4)player.pos.y*SIM_SIZE+(u4)player.pos.x] = 2;
-			gl_queue.message[gl_queue.cnt].id = 0;
-			gl_queue.message[gl_queue.cnt++].pos = (IVEC2){player.pos.x,player.pos.y};
 			break;
 		}
 		break;
@@ -134,52 +149,68 @@ i4 proc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam){
 		VEC2sub(&camera_new.pos,zoom_adjust*200.0f);
 		break;
 	}
-	case WM_LBUTTONDOWN:
-		if(!player.weapon_cooldown && player.energy > WEAPON_LASER_COST){
-			player.energy -= WEAPON_LASER_COST;
-			VEC2 direction = VEC2subVEC2R(getCursorPosMap(),VEC2subVEC2R(player.pos,camera.pos));
-			RAY2D ray = ray2dCreate(player.pos,direction);
-			while(ray.square_pos.x >= 0 && ray.square_pos.x < SIM_SIZE && ray.square_pos.y >= 0 && ray.square_pos.y < SIM_SIZE){
-				if(map[ray.square_pos.y*SIM_SIZE+ray.square_pos.x]==BLOCK_NORMAL) break;
-				ray2dIterate(&ray);
-			}
-			f4 min_dst = 99999.0f;
-			i4 id = -1;
-			for(u4 i = 0;i < entity_dark.cnt;i++){
-				if(rayIntersectSquare(entity_dark.state[i].pos,direction,player.pos,ENEMY_SIZE/2.0f) != -1.0f){
-					u4 iterations = (u4)tAbsf(player.pos.x-entity_dark.state[i].pos.x)+(u4)tAbsf(player.pos.y-entity_dark.state[i].pos.y);
-					f4 dst = VEC2distance(player.pos,entity_dark.state[i].pos);
-					if(lineOfSight(player.pos,direction,iterations) && min_dst > dst){
-						min_dst = dst;
-						id = i;
+	case WM_LBUTTONDOWN:{
+		VEC2 cursor = getCursorPosGUI();
+		if(cursor.x < 0.5){
+			if(!player.weapon_cooldown && player.energy > WEAPON_LASER_COST){
+				player.energy -= WEAPON_LASER_COST;
+				VEC2 direction = VEC2subVEC2R(getCursorPosMap(),VEC2subVEC2R(player.pos,camera.pos));
+				RAY2D ray = ray2dCreate(player.pos,direction);
+				while(ray.square_pos.x >= 0 && ray.square_pos.x < SIM_SIZE && ray.square_pos.y >= 0 && ray.square_pos.y < SIM_SIZE){
+					if(map[ray.square_pos.y*SIM_SIZE+ray.square_pos.x]==BLOCK_NORMAL) break;
+					ray2dIterate(&ray);
+				}
+				f4 min_dst = 99999.0f;
+				i4 id = -1;
+				for(u4 i = 0;i < entity_dark.cnt;i++){
+					if(rayIntersectSquare(entity_dark.state[i].pos,direction,player.pos,ENEMY_SIZE/2.0f) != -1.0f){
+						u4 iterations = (u4)tAbsf(player.pos.x-entity_dark.state[i].pos.x)+(u4)tAbsf(player.pos.y-entity_dark.state[i].pos.y);
+						f4 dst = VEC2distance(player.pos,entity_dark.state[i].pos);
+						if(lineOfSight(player.pos,direction,iterations) && min_dst > dst){
+							min_dst = dst;
+							id = i;
+						}
 					}
 				}
-			}
-			if(id!=-1){
-				VEC2 ray_end_pos = VEC2addVEC2R(player.pos,VEC2mulR(VEC2normalizeR(direction),min_dst));
-				for(u4 j = 0;j < 5;j++){
-					entity_light.state[entity_light.cnt].size = 0.5f;
-					entity_light.state[entity_light.cnt].type = PARTICLE_NORMAL;
-					entity_light.state[entity_light.cnt].color = VEC3mulR(LASER_LUMINANCE,0.5f);
-					entity_light.state[entity_light.cnt].vel = VEC2mulR(VEC2rotR(direction,(tRnd()-1.5f)*0.5f),(tRnd()-0.5f)*0.01f);
-					entity_light.state[entity_light.cnt].health = 30+tRnd()*30.0f;
-					entity_light.state[entity_light.cnt++].pos = ray_end_pos;
+				if(id!=-1){
+					VEC2 ray_end_pos = VEC2addVEC2R(player.pos,VEC2mulR(VEC2normalizeR(direction),min_dst));
+					for(u4 j = 0;j < 5;j++){
+						entity_light.state[entity_light.cnt].size = 0.5f;
+						entity_light.state[entity_light.cnt].type = PARTICLE_NORMAL;
+						entity_light.state[entity_light.cnt].color = VEC3mulR(LASER_LUMINANCE,0.5f);
+						entity_light.state[entity_light.cnt].vel = VEC2mulR(VEC2rotR(direction,(tRnd()-1.5f)*0.5f),(tRnd()-0.5f)*0.01f);
+						entity_light.state[entity_light.cnt].health = 30+tRnd()*30.0f;
+						entity_light.state[entity_light.cnt++].pos = ray_end_pos;
+					}
+					while(tRnd()<1.5f){
+						VEC2 orb_direction = VEC2mulR(VEC2rotR(direction,(tRnd()-1.5f)*0.5f),(tRnd()-0.5f)*0.01f);
+						spawnLootOrb(LOOT_ENERGY,orb_direction,ray_end_pos);
+					}
+					while(tRnd()<1.5f){
+						VEC2 orb_direction = VEC2mulR(VEC2rotR(direction,(tRnd()-1.5f)*0.5f),(tRnd()-0.5f)*0.01f);
+						spawnLootOrb(LOOT_HEALTH,orb_direction,ray_end_pos);
+					}
+					while(tRnd()<1.5f){
+						VEC2 orb_direction = VEC2mulR(VEC2rotR(direction,(tRnd()-1.5f)*0.5f),(tRnd()-0.5f)*0.01f);
+						spawnLootOrb(LOOT_SCRAP,orb_direction,ray_end_pos);
+					}
+					laser.state[laser.cnt].pos_dst = ray_end_pos;
+					for(u4 i = 0;i < entity_dark.cnt;i++){
+						if(id==i) continue;
+						VEC2subVEC2(&entity_dark.state[i].vel,entityPull(entity_dark.state[i].pos,entity_dark.state[id].pos,1.0f));
+					}
+					ENTITY_REMOVE(entity_dark,id);
 				}
-				laser.state[laser.cnt].pos_dst = ray_end_pos;
-				for(u4 i = 0;i < entity_dark.cnt;i++){
-					if(id==i) continue;
-					VEC2subVEC2(&entity_dark.state[i].vel,entityPull(entity_dark.state[i].pos,entity_dark.state[id].pos,1.0f));
+				else{
+					laser.state[laser.cnt].pos_dst = ray2dGetCoords(ray);
 				}
-				ENTITY_REMOVE(entity_dark,id);
+				laser.state[laser.cnt].pos_org = player.pos;
+				laser.state[laser.cnt++].health = 5;
+				player.weapon_cooldown = PLAYER_WEAPON_COOLDOWN;
 			}
-			else{
-				laser.state[laser.cnt].pos_dst = ray2dGetCoords(ray);
-			}
-			laser.state[laser.cnt].pos_org = player.pos;
-			laser.state[laser.cnt++].health = 5;
-			player.weapon_cooldown = PLAYER_WEAPON_COOLDOWN;
 		}
 		break;
+		}
 	}
 	return DefWindowProcA(hwnd,msg,wParam,lParam);
 }
@@ -209,9 +240,9 @@ void collision(VEC2* pos,VEC2 vel,f4 size){
 u1 AABBcollision(VEC2 pos1,VEC2 pos2,f4 size1,f4 size2){
 	if(pos1.x < pos2.x + size2 && pos1.x + size1 > pos2.x && 
 	pos1.y < pos2.y + size2 && pos1.y + size1 > pos2.y){
-		return 1;
+		return TRUE;
 	}
-	return 0;
+	return FALSE;
 }
 
 void gametick(){
@@ -237,32 +268,40 @@ void gametick(){
 			else               player.vel.x-=PLAYER_SPEED;
 		}
 		if(player.energy && GetKeyState(VK_RBUTTON) & 0x80){
-			player.flashlight = 1;
+			player.flashlight = TRUE;
 			player.energy--;
 		}
 		else{
-			player.flashlight = 0;
+			player.flashlight = FALSE;
 		}
 		VEC2addVEC2(&player.pos,player.vel);
 		collision(&player.pos,player.vel,PLAYER_SIZE/2.0f);
 		VEC2mul(&player.vel,PR_FRICTION);
-		if(tRnd()<1.01f && entity_dark.cnt < 32){
+		if(tRnd()<1.01f && entity_dark.cnt < 64){
 			VEC2 spawn = (VEC2){(tRnd()-1.0f)*CHUNK_SIZE,(tRnd()-1.0f)*CHUNK_SIZE};
 			if(tRnd()<1.5f) spawn.x += CHUNK_SIZE;
 			if(tRnd()<1.5f) spawn.y += CHUNK_SIZE;
 			entity_dark.state[entity_dark.cnt].pos = spawn;
+			entity_dark.state[entity_dark.cnt].health = 100;
 			entity_dark.state[entity_dark.cnt++].vel = VEC2_ZERO;
 		}
 		for(u4 i = 0;i < entity_dark.cnt;i++){
-			u4 iterations = (u4)fabsf(player.pos.x-entity_dark.state[i].pos.x)+(u4)fabsf(player.pos.y-entity_dark.state[i].pos.y);
+			u4 iterations = (u4)tAbsf(player.pos.x-entity_dark.state[i].pos.x)+(u4)tAbsf(player.pos.y-entity_dark.state[i].pos.y);
 			VEC2 toPlayer = VEC2normalizeR(VEC2subVEC2R(player.pos,entity_dark.state[i].pos));
-			if(player.health && lineOfSight(entity_dark.state[i].pos,toPlayer,iterations)){
-				VEC2div(&toPlayer,65.0f);
-				VEC2addVEC2(&entity_dark.state[i].vel,toPlayer);
+			if(player.health){
+				if(lineOfSight(entity_dark.state[i].pos,toPlayer,iterations)){
+					if(entity_dark.state[i].aggressive){
+						VEC2div(&toPlayer,50.0f);
+						VEC2addVEC2(&entity_dark.state[i].vel,toPlayer);
+					}
+					else{
+						f4 distance = VEC2distance(player.pos,entity_dark.state[i].pos)/50.0f;
+						if(sqrtf(distance)+tRnd()<2.0f) entity_dark.state[i].aggressive = TRUE;
+					}
+				}
+				else if(tRnd()<1.02f) entity_dark.state[i].aggressive = FALSE;
 			}
-			else if(tRnd() < 1.05f){
-				VEC2addVEC2(&entity_dark.state[i].vel,(VEC2){(tRnd()-1.5f)/2.5f,(tRnd()-1.5f)/2.5f});
-			}
+			if(tRnd() < 1.05f) VEC2addVEC2(&entity_dark.state[i].vel,(VEC2){(tRnd()-1.5f)/2.5f,(tRnd()-1.5f)/2.5f});
 			VEC2addVEC2(&entity_dark.state[i].pos,entity_dark.state[i].vel);
 			collision(&entity_dark.state[i].pos,entity_dark.state[i].vel,ENEMY_SIZE/2.0f);
 			for(u4 j = 0;j < entity_dark.cnt;j++){
@@ -296,6 +335,7 @@ void gametick(){
 				ENTITY_REMOVE(entity_dark,i);
 			}
 		}
+		entityLightTick();
 		for(u4 i = 0;i < laser.cnt;i++){
 			if(laser.state[i].health>1){
 				laser.state[i].pos_org = player.pos;
@@ -305,62 +345,15 @@ void gametick(){
 				ENTITY_REMOVE(laser,i);
 			}
 		}
-		for(u4 i = 0;i < entity_light.cnt;i++){
-			switch(entity_light.state[i].type){
-			case PARTICLE_NORMAL:
-				if(entity_light.state[i].health--){
-					VEC2addVEC2(&entity_light.state[i].pos,entity_light.state[i].vel);
-					collision(&entity_light.state[i].pos,entity_light.state[i].vel,0.5f);
-					if(entity_light.state[i].health<15){
-						VEC3mul(&entity_light.state[i].color,0.8f);
-						entity_light.state[i].size *= 0.8;
-					}	
-				}
-				else{
-					ENTITY_REMOVE(entity_light,i);
-				}
-				break;
-			case PARTICLE_ENERGY_INFANT:
-				if(entity_light.state[i].health--){
-					VEC3addVEC3(&entity_light.state[i].color,(VEC3){0.003f,0.003f,0.0006f});
-					entity_light.state[i].size += 0.02f;
-				}
-				else{
-					entity_light.state[i].vel = VEC2rndR();
-					entity_light.state[i].type = PARTICLE_ENERGY_PARENT;
-					entity_light.state[i].health = 60*60;
-				}
-				break;
-			case PARTICLE_ENERGY_PARENT:
-				if(entity_light.state[i].health--){
-					VEC2addVEC2(&entity_light.state[i].pos,entity_light.state[i].vel);
-					collision(&entity_light.state[i].pos,entity_light.state[i].vel,entity_light.state[i].size/2.0f);
-					if(VEC2distance(entity_light.state[i].pos,player.pos)<1.0f){
-						player.energy += 200;
-						if(player.energy>ENERGY_MAX) player.energy = ENERGY_MAX;
-						ENTITY_REMOVE(entity_light,i);
-						break;
-					}	
-					VEC2mul(&entity_light.state[i].vel,PR_FRICTION);
-					VEC2addVEC2(&entity_light.state[i].vel,entityPull(entity_light.state[i].pos,player.pos,1.0f));
-					if(entity_light.state[i].health<15){
-						VEC3mul(&entity_light.state[i].color,0.8f);
-						entity_light.state[i].size *= 0.8;
-					}	
-				}
-				else{
-					ENTITY_REMOVE(entity_light,i);
-				}
-
-				break;
-			}
-		}
 		for(u4 i = 0;i < entity_block.cnt;i++){
 			if(!entity_block.state[i].countdown--){
 				if(entity_light.cnt < 128){
 					entity_light.state[entity_light.cnt].size = 0.0f;
 					entity_light.state[entity_light.cnt].color = VEC3_ZERO;
-					entity_light.state[entity_light.cnt].type = PARTICLE_ENERGY_INFANT;
+					entity_light.state[entity_light.cnt].type = LOOT_INFANT;
+					f4 r = tRnd();
+					if(r<1.8f) entity_light.state[entity_light.cnt].loot_type = LOOT_ENERGY;
+					else       entity_light.state[entity_light.cnt].loot_type = LOOT_HEALTH;
 					entity_light.state[entity_light.cnt].health = 30;
 					entity_light.state[entity_light.cnt++].pos = (VEC2){entity_block.state[i].pos.x+0.5f,entity_block.state[i].pos.y+0.5f};
 				}
@@ -397,7 +390,7 @@ void render(){
 
 void main(){
 	timeBeginPeriod(1);
-	ShowCursor(0);
+	ShowCursor(FALSE);
 	vram   = HeapAlloc(GetProcessHeap(),HEAP_ZERO_MEMORY,sizeof(RGB)*CHUNK_SIZE_SURFACE);
 	vramf  = HeapAlloc(GetProcessHeap(),HEAP_ZERO_MEMORY,sizeof(VEC3)*CHUNK_SIZE_SURFACE);
 	map    = HeapAlloc(GetProcessHeap(),HEAP_ZERO_MEMORY,SIM_SIZE_SURFACE);
@@ -407,12 +400,12 @@ void main(){
 	laser.state  = HeapAlloc(GetProcessHeap(),0,sizeof(LASER)*255);
 	entity_light.state     = HeapAlloc(GetProcessHeap(),0,sizeof(PARTICLE)*255);
 	entity_block.state = HeapAlloc(GetProcessHeap(),0,sizeof(BLOCKENTITY)*255);
-	texture16 = HeapAlloc(GetProcessHeap(),HEAP_ZERO_MEMORY,sizeof(RGB)*TEXTURE16_SIZE*TEXTURE16_SIZE);
+	texture16 = HeapAlloc(GetProcessHeap(),HEAP_ZERO_MEMORY,sizeof(RGB)*TEXTURE16_ROW_SIZE*TEXTURE16_ROW_SIZE);
 	wndclass.hInstance = GetModuleHandleA(0);
 	RegisterClassA(&wndclass);
-	window = CreateWindowExA(0,"class","hello",WS_VISIBLE | WS_POPUP,WNDOFFX,WNDOFFY,WNDY,WNDX,0,0,wndclass.hInstance,0);
-	dc = GetDC(window);
 	client_resolution = (IVEC2){GetSystemMetrics(SM_CXSCREEN),GetSystemMetrics(SM_CYSCREEN)};
+	window = CreateWindowExA(0,"class","hello",WS_VISIBLE|WS_POPUP,0,0,client_resolution.x,client_resolution.y,0,0,wndclass.hInstance,0);
+	dc = GetDC(window);
 	worldLoadSpawn();
 	genTextures();
 	CreateThread(0,0,render,0,0,0);

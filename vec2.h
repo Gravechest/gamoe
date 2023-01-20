@@ -2,10 +2,12 @@
 
 #include "small_types.h"
 
-#define VEC2_X 0
-#define VEC2_Y 1
-
 #define VEC2_ZERO (VEC2){0.0f,0.0f}
+
+enum{
+	VEC2_X,
+	VEC2_Y
+};
 
 typedef struct{
 	union{

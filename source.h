@@ -9,20 +9,11 @@
 
 #define PLAYER_SPEED 0.017f
 
-#define BLOCK_AIR       0
-#define BLOCK_NORMAL    1
-#define BLOCK_LIGHT     2
-#define BLOCK_ENTITY    3
-#define BLOCK_SPRINKLER 4
-
 #define WEAPON_LASER_COST 700
 
 #define ENERGY_MAX 6000
 #define HEALTH_MAX 100
-
-#define PARTICLE_NORMAL        0
-#define PARTICLE_ENERGY_INFANT 1
-#define PARTICLE_ENERGY_PARENT 2
+#define SCRAP_MAX 50
 
 #define ENTITY_REMOVE(TYPE,ID) for(u4 I = ID--;I < TYPE.cnt;I++) TYPE.state[I] = TYPE.state[I+1]; TYPE.cnt--;
 
@@ -45,11 +36,6 @@
 #define PLAYER_SIZE 2.5f
 #define PLAYER_WEAPON_COOLDOWN 60
 
-#define ENEMY_SPRITE (VEC2){0.5f,0.5f}
-#define CROSSHAIR_SPRITE (VEC2){0.0f,0.5f}
-#define BULLET_SPRITE (VEC2){0.5f,0.0f}
-#define PLAYER_SPRITE (VEC2){0.0f,0.0f}
-
 #define ENEMY_SIZE 1.7f
 
 #define CAM_AREA 0.0f
@@ -63,11 +49,25 @@
 #define VK_L 0x4C
 #define VK_F 0x46
 
-#define WNDOFFX 0
-#define WNDOFFY 0
+enum{
+	ITEM_NOTHING,
+	ITEM_MELEE 
+};
 
-#define WNDX 1080
-#define WNDY 1920
+enum{
+	PLAYER_SPRITE,
+	BULLET_SPRITE,
+	CROSSHAIR_SPRITE,
+	ENEMY_SPRITE
+};
+
+enum{
+	BLOCK_AIR,
+	BLOCK_NORMAL,
+	BLOCK_LIGHT,
+	BLOCK_ENTITY,
+	BLOCK_SPRINKLER
+};
 
 typedef struct{
 	u1 r;
@@ -76,9 +76,15 @@ typedef struct{
 }RGB;
 
 typedef struct{
+	u1 item_equiped;
+	u1 item[9];
+}INVENTORY;
+
+typedef struct{
 	u4 health;
-	u4 flashlight;
 	u4 energy;
+	u4 scrap;
+	u4 flashlight;
 	u4 weapon_cooldown;
 	u4 respawn_countdown;
 	VEC2 vel;
@@ -94,6 +100,8 @@ typedef struct{
 	VEC2 vel;
 	VEC2 pos;
 	VEC3 luminance;
+	u4 health;
+	u1 aggressive;
 }ENEMY;
 
 typedef struct{
@@ -113,20 +121,6 @@ typedef struct{
 }LASERHUB;
 
 typedef struct{
-	VEC3 color;
-	VEC2 pos;
-	VEC2 vel;
-	u4 health;
-	u4 type;
-	f4 size;
-}PARTICLE;
-
-typedef struct{
-	u4 cnt;
-	PARTICLE* state;
-}PARTICLEHUB;
-
-typedef struct{
 	u4 countdown;
 	IVEC2 pos;
 }BLOCKENTITY;
@@ -139,14 +133,17 @@ typedef struct{
 void genMap(IVEC2 crd,u4 offset,u4 depth,f4 value);
 VEC2 getCursorPos();
 VEC2 getCursorPosMap();
+VEC2 getCursorPosGUI();
 u1* loadFile(u1* name);
 RGB* loadBMP(u1* name);
+VEC2 entityPull(VEC2 entity,VEC2 destination,f4 power);
+void collision(VEC2* pos,VEC2 vel,f4 size);
 
 extern u1* map;
 extern LASERHUB  laser;
-extern PARTICLEHUB entity_light;
 extern ENEMYHUB  entity_dark;
 extern BLOCKENTITYHUB entity_block;
+extern INVENTORY inventory;
 extern PLAYER player;
 extern CAMERA camera;
 extern CAMERA camera_new;

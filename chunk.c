@@ -6,6 +6,7 @@
 #include "source.h"
 #include "opengl.h"
 #include "tmath.h"
+#include "entity_light.h"
 
 CHUNKHUB  chunk;
 IVEC2 current_chunk;

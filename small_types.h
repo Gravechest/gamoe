@@ -1,5 +1,8 @@
 #pragma once
 
+#define FALSE 0
+#define TRUE 1
+
 typedef unsigned char      u1;
 typedef unsigned short     u2;
 typedef unsigned int       u4;

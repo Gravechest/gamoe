@@ -4,8 +4,10 @@
 #include "vec2.h"
 #include "ivec2.h"
 
-#define SQUARE_SIDE_X 0
-#define SQUARE_SIDE_Y 1
+enum{
+	SQUARE_SIDE_X,
+	SQUARE_SIDE_Y
+};
 
 typedef struct{
 	VEC2 pos;

@@ -11,6 +11,7 @@
 #include "chunk.h"
 #include "ivec2.h"	
 #include "lighting.h"
+#include "entity_light.h"
 
 u4 VBO;
 u4 texture,map_texture,sprite_texture,font_texture;
@@ -22,7 +23,7 @@ u4 entity_shadows_cnt;
 IVEC2 entity_shadows[255];
 
 VEC2 mapCrdToRenderCrd(VEC2 p){
-	return (VEC2){((p.x-camera.pos.x)/(camera.zoom/2.0f/RD_CMP)-1.0f),(p.y-camera.pos.y)/(camera.zoom/2.0f)-1.0f};
+	return (VEC2){((p.x-camera.pos.x)/(camera.zoom/2.0f/RD_CMP)*1.015625f-0.0078125f-1.0f),((p.y-camera.pos.y))/(camera.zoom/2.0f)*1.015625f-0.015625f-1.0f};
 }
 
 VEC2 screenCrdToRenderCrd(VEC2 p){
@@ -115,7 +116,7 @@ void openglInit(){
 	glUseProgram(sprite_shader);
 	glUniform1i(glGetUniformLocation(sprite_shader,"t_texture"),2);
 	glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_NEAREST);
-	glTexImage2D(GL_TEXTURE_2D,0,GL_RGB,TEXTURE16_SIZE,TEXTURE16_SIZE,0,GL_RGB,GL_UNSIGNED_BYTE,texture16);
+	glTexImage2D(GL_TEXTURE_2D,0,GL_RGB,TEXTURE16_ROW_SIZE,TEXTURE16_ROW_SIZE,0,GL_RGB,GL_UNSIGNED_BYTE,texture16);
 	glGenerateMipmap(GL_TEXTURE_2D);
 	HeapFree(GetProcessHeap(),0,texture16);
 
@@ -123,6 +124,13 @@ void openglInit(){
 	glVertexAttribPointer(0,2,GL_FLOAT,0,4 * sizeof(float),(void*)0);
 	glEnableVertexAttribArray(1);
 	glVertexAttribPointer(1,2,GL_FLOAT,0,4 * sizeof(float),(void*)(2 * sizeof(float)));
+}
+
+void GUIlootBoxEdge(VEC2 pos){
+	drawRect((VEC2){pos.x+0.36f,pos.y+0.04f},(VEC2){0.2f,0.005f},(VEC3){0.5f,0.5f,0.5f});
+	drawRect((VEC2){pos.x+0.36f,pos.y-0.04f},(VEC2){0.2f,0.005f},(VEC3){0.5f,0.5f,0.5f});
+	drawRect((VEC2){pos.x+0.158f,pos.y},(VEC2){0.003f,0.045f},(VEC3){0.5f,0.5f,0.5f});
+	drawRect((VEC2){pos.x+0.563f,pos.y},(VEC2){0.003f,0.045f},(VEC3){0.5f,0.5f,0.5f});
 }
 
 void opengl(){
@@ -218,14 +226,21 @@ void opengl(){
 	}
 	drawMap();
 	glUseProgram(sprite_shader);
-	if(player.health) drawSprite(mapCrdToRenderCrd(player.pos),RD_SQUARE(PLAYER_SIZE),PLAYER_SPRITE);
-	drawSprite(screenCrdToRenderCrd(getCursorPos()),RD_GUI(2.5f),CROSSHAIR_SPRITE);
+	if(player.health) drawSprite(mapCrdToRenderCrd(player.pos),RD_SQUARE(PLAYER_SIZE),TEXTURE16_RENDER(PLAYER_SPRITE));
+	drawSprite(getCursorPosGUI(),RD_GUI(2.5f),TEXTURE16_RENDER(CROSSHAIR_SPRITE));
+
+	for(u4 i = 0;i < 9;i++){
+		VEC2 draw_pos = VEC2addVEC2R((VEC2){i/3/6.0f,i%3/4.5f},GUI_INVENTORY);
+		if(inventory.item[i]) drawSprite(draw_pos,RD_GUI(4000.0f),VEC2_ZERO);
+	}
+	if(inventory.item_equiped) drawSprite(GUI_EQUIPED,RD_GUI(8.0f),texture16Render(inventory.item_equiped+3));
+
 	glUseProgram(entity_dark_shader);
 	for(u4 i = 0;i < entity_dark.cnt;i++){
 		VEC2 relative_pos = VEC2subVEC2R(entity_dark.state[i].pos,camera.pos);
 		if(relative_pos.x>0.0f&&relative_pos.x<camera.zoom&&relative_pos.y>0.0f&&relative_pos.y<camera.zoom){
 			VEC3mul(&entity_dark.state[i].luminance,0.025f);
-			drawEnemy(mapCrdToRenderCrd(entity_dark.state[i].pos),RD_SQUARE(ENEMY_SIZE),ENEMY_SPRITE,entity_dark.state[i].luminance);
+			drawEnemy(mapCrdToRenderCrd(entity_dark.state[i].pos),RD_SQUARE(ENEMY_SIZE),TEXTURE16_RENDER(ENEMY_SPRITE),entity_dark.state[i].luminance);
 			entity_dark.state[i].luminance = (VEC3){0.0f,0.0f,0.0f};
 		}
 	}
@@ -237,6 +252,18 @@ void opengl(){
 		drawParticle(pos,size,color);
 	}
 	glUseProgram(color_shader);
+	for(u4 i = 0;i < 9;i++){
+		VEC2 draw_pos = VEC2addVEC2R((VEC2){i/3/7.0f,i%3/(7.0f*RD_CMP)},GUI_INVENTORY);
+		drawRect(VEC2addVEC2R(draw_pos,(VEC2){0.0f,0.075f}),(VEC2){0.03f,0.005f},(VEC3){0.5f,0.5f,0.5f});
+		drawRect(VEC2addVEC2R(draw_pos,(VEC2){0.0f,-0.075f}),(VEC2){0.03f,0.005f},(VEC3){0.5f,0.5f,0.5f});
+		drawRect(VEC2addVEC2R(draw_pos,(VEC2){0.075f*RD_CMP,0.0f}),(VEC2){0.003f,0.05f},(VEC3){0.5f,0.5f,0.5f});
+		drawRect(VEC2addVEC2R(draw_pos,(VEC2){-0.075f*RD_CMP,0.0f}),(VEC2){0.003f,0.05f},(VEC3){0.5f,0.5f,0.5f});
+	}
+	drawRect(VEC2addVEC2R(GUI_EQUIPED,(VEC2){0.0f,0.075f}),(VEC2){0.03f,0.005f},(VEC3){0.5f,0.5f,0.5f});
+	drawRect(VEC2addVEC2R(GUI_EQUIPED,(VEC2){0.0f,-0.075f}),(VEC2){0.03f,0.005f},(VEC3){0.5f,0.5f,0.5f});
+	drawRect(VEC2addVEC2R(GUI_EQUIPED,(VEC2){0.075f*RD_CMP,0.0f}),(VEC2){0.003f,0.05f},(VEC3){0.5f,0.5f,0.5f});
+	drawRect(VEC2addVEC2R(GUI_EQUIPED,(VEC2){-0.075f*RD_CMP,0.0f}),(VEC2){0.003f,0.05f},(VEC3){0.5f,0.5f,0.5f});
+
 	drawRect((VEC2){0.13f,0.0f},(VEC2){0.01f,1.0f},(VEC3){0.7f,0.0f,0.0f});
 	for(u4 i = 0;i < laser.cnt;i++){
 		VEC2 pos_1 = mapCrdToRenderCrd(laser.state[i].pos_org);
@@ -251,23 +278,31 @@ void opengl(){
 		pos.y += 0.05f;
 		drawRect(pos,(VEC2){progress,0.005f},(VEC3){0.2f,0.5f,0.0f});
 	}
+
 	f4 energy = (f4)player.energy/5.0f/ENERGY_MAX;
-	drawRect((VEC2){GUI_ENERGY.x+0.16f+energy,GUI_ENERGY.y},(VEC2){energy,0.04f},(VEC3){0.6f,0.6f,0.12f});
+	drawRect((VEC2){GUI_ENERGY.x+0.16f+energy,GUI_ENERGY.y},(VEC2){energy,0.04f},LOOT_ENERGY_COLOR);
+	GUIlootBoxEdge(GUI_ENERGY);
 
 	f4 health = (f4)player.health/5.0f/HEALTH_MAX;
-	drawRect((VEC2){GUI_HEALTH.x+0.16f+health,GUI_HEALTH.y},(VEC2){health,0.04f},(VEC3){0.7f,0.2f,0.2f});
+	drawRect((VEC2){GUI_HEALTH.x+0.16f+health,GUI_HEALTH.y},(VEC2){health,0.04f},LOOT_HEALTH_COLOR);
+	GUIlootBoxEdge(GUI_HEALTH);
+
+	f4 scrap = (f4)player.scrap/5.0f/SCRAP_MAX;
+	drawRect((VEC2){GUI_SCRAP.x+0.16f+scrap,GUI_SCRAP.y},(VEC2){scrap,0.04f},LOOT_SCRAP_COLOR);
+	GUIlootBoxEdge(GUI_SCRAP);
 
 	glActiveTexture(GL_TEXTURE3);
 	glUseProgram(font_shader);
 	drawString(GUI_ENERGY,RD_GUI(2.5f),"energy=");
 	drawString(GUI_HEALTH,RD_GUI(2.5f),"health=");
+	drawString(GUI_SCRAP,RD_GUI(2.5f),"scrap =");
 	u1 str[80];
-	sprintf(str,"chunk: %i,%i",current_chunk.x,current_chunk.y);
-	drawString((VEC2){0.3f,0.0f},RD_GUI(2.5f),str);
-	sprintf(str,"player: %f,%f",player.pos.x,player.pos.y);
-	drawString((VEC2){0.3f,0.1f},RD_GUI(2.5f),str);
-	sprintf(str,"camera: %f,%f",camera.pos.x,camera.pos.y);
-	drawString((VEC2){0.3f,0.2f},RD_GUI(2.5f),str);
+	sprintf(str,"%i/%i",player.energy,ENERGY_MAX);
+	drawString((VEC2){GUI_ENERGY.x+0.18f,GUI_ENERGY.y},RD_GUI(2.5f),str);
+	sprintf(str,"%i/%i",player.health,HEALTH_MAX);
+	drawString((VEC2){GUI_HEALTH.x+0.18f,GUI_HEALTH.y},RD_GUI(2.5f),str);
+	sprintf(str,"%i/%i",player.scrap,SCRAP_MAX);
+	drawString((VEC2){GUI_SCRAP.x+0.18f,GUI_SCRAP.y},RD_GUI(2.5f),str);
 	static u8 t,t2;
 	QueryPerformanceCounter(&t2);
 	sprintf(str,"ns/frame: %i",(t2-t)/10);

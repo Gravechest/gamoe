@@ -2,6 +2,8 @@
 
 #include "small_types.h"
 
+#define IVEC2_ZERO (IVEC2){0,0}
+
 typedef struct{
 	union{
 		struct{

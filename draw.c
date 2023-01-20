@@ -5,6 +5,7 @@
 #include "tmath.h"
 #include "opengl.h"
 #include "source.h"
+#include "textures.h"
 
 QUAD quad = {
 	.tc1={0.0f,0.0f},
@@ -33,12 +34,12 @@ void drawSprite(VEC2 pos,VEC2 size,VEC2 texture_pos){
 	sprite_quad.p4 = (VEC2){pos.x+size.x,pos.y+size.y};
 	sprite_quad.p5 = (VEC2){pos.x-size.x,pos.y+size.y};
 	sprite_quad.p6 = (VEC2){pos.x+size.x,pos.y-size.y};
-	sprite_quad.tc1 = (VEC2){texture_pos.x     ,texture_pos.y     };
-	sprite_quad.tc2 = (VEC2){texture_pos.x     ,texture_pos.y+0.5f};
-	sprite_quad.tc3 = (VEC2){texture_pos.x+0.5f,texture_pos.y     };
-	sprite_quad.tc4 = (VEC2){texture_pos.x+0.5f,texture_pos.y+0.5f};
-	sprite_quad.tc5 = (VEC2){texture_pos.x     ,texture_pos.y+0.5f};
-	sprite_quad.tc6 = (VEC2){texture_pos.x+0.5f,texture_pos.y     };
+	sprite_quad.tc1 = (VEC2){texture_pos.x                  ,texture_pos.y                  };
+	sprite_quad.tc2 = (VEC2){texture_pos.x                  ,texture_pos.y+TEXTURE16_RD_SIZE};
+	sprite_quad.tc3 = (VEC2){texture_pos.x+TEXTURE16_RD_SIZE,texture_pos.y                  };
+	sprite_quad.tc4 = (VEC2){texture_pos.x+TEXTURE16_RD_SIZE,texture_pos.y+TEXTURE16_RD_SIZE};
+	sprite_quad.tc5 = (VEC2){texture_pos.x                  ,texture_pos.y+TEXTURE16_RD_SIZE};
+	sprite_quad.tc6 = (VEC2){texture_pos.x+TEXTURE16_RD_SIZE,texture_pos.y                  };
 	glBufferData(GL_ARRAY_BUFFER,24 * sizeof(float),&sprite_quad,GL_DYNAMIC_DRAW);
 	glDrawArrays(GL_TRIANGLES,0,24);
 }
@@ -71,12 +72,12 @@ void drawEnemy(VEC2 pos,VEC2 size,VEC2 texture_pos,VEC3 luminance){
 	sprite_quad.p4 = (VEC2){pos.x+size.x,pos.y+size.y};
 	sprite_quad.p5 = (VEC2){pos.x-size.x,pos.y+size.y};
 	sprite_quad.p6 = (VEC2){pos.x+size.x,pos.y-size.y};
-	sprite_quad.tc1 = (VEC2){texture_pos.x     ,texture_pos.y     };
-	sprite_quad.tc2 = (VEC2){texture_pos.x     ,texture_pos.y+0.5f};
-	sprite_quad.tc3 = (VEC2){texture_pos.x+0.5f,texture_pos.y     };
-	sprite_quad.tc4 = (VEC2){texture_pos.x+0.5f,texture_pos.y+0.5f};
-	sprite_quad.tc5 = (VEC2){texture_pos.x     ,texture_pos.y+0.5f};
-	sprite_quad.tc6 = (VEC2){texture_pos.x+0.5f,texture_pos.y     };
+	sprite_quad.tc1 = (VEC2){texture_pos.x                  ,texture_pos.y                  };
+	sprite_quad.tc2 = (VEC2){texture_pos.x                  ,texture_pos.y+TEXTURE16_RD_SIZE};
+	sprite_quad.tc3 = (VEC2){texture_pos.x+TEXTURE16_RD_SIZE,texture_pos.y                  };
+	sprite_quad.tc4 = (VEC2){texture_pos.x+TEXTURE16_RD_SIZE,texture_pos.y+TEXTURE16_RD_SIZE};
+	sprite_quad.tc5 = (VEC2){texture_pos.x                  ,texture_pos.y+TEXTURE16_RD_SIZE};
+	sprite_quad.tc6 = (VEC2){texture_pos.x+TEXTURE16_RD_SIZE,texture_pos.y                  };
 	glUniform3f(glGetUniformLocation(entity_dark_shader,"luminance"),luminance.r,luminance.g,luminance.b);
 	glBufferData(GL_ARRAY_BUFFER,24 * sizeof(float),&sprite_quad,GL_DYNAMIC_DRAW);
 	glDrawArrays(GL_TRIANGLES,0,24);
