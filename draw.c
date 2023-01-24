@@ -5,7 +5,6 @@
 #include "tmath.h"
 #include "opengl.h"
 #include "source.h"
-#include "textures.h"
 
 QUAD quad = {
 	.tc1={0.0f,0.0f},
@@ -95,10 +94,10 @@ void drawMap(){
 	glDrawArrays(GL_TRIANGLES,0,24);
 }
 
-void drawLaser(VEC2 origin,VEC2 destination,VEC3 color){
+void drawLine(VEC2 origin,VEC2 destination,VEC3 color,f4 thickness){
 	VEC2 direction = VEC2normalizeR(VEC2subVEC2R(destination,origin));
 	VEC2rot(&direction,PI/2.0f);
-	VEC2div(&direction,512.0f);
+	VEC2mul(&direction,thickness);
 	quad.p1 = (VEC2){origin.x-     direction.x,origin.y-     direction.y};
 	quad.p2 = (VEC2){origin.x+     direction.x,origin.y+     direction.y};
 	quad.p3 = (VEC2){destination.x+direction.x,destination.y+direction.y};

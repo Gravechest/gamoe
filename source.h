@@ -7,13 +7,17 @@
 
 #pragma comment(lib,"Winmm.lib")
 
-#define PLAYER_SPEED 0.017f
+#define BUILDING_TEXURE_ROWCOUNT 8
+
+#define TILE_TEXTURE_SIZE 4
+#define TILE_TEXTURE_SURFACE TILE_TEXTURE_SIZE * TILE_TEXTURE_SIZE
+
+#define ITEM_SPRITE_OFFSET 11
+
+#define INVENTOTY_EQUIP_OFFSET 0
+#define INVENTORY_NORMAL_OFFSET 1
 
 #define WEAPON_LASER_COST 700
-
-#define ENERGY_MAX 6000
-#define HEALTH_MAX 100
-#define SCRAP_MAX 50
 
 #define ENTITY_REMOVE(TYPE,ID) for(u4 I = ID--;I < TYPE.cnt;I++) TYPE.state[I] = TYPE.state[I+1]; TYPE.cnt--;
 
@@ -29,15 +33,6 @@
 #define RD_LASER_LUMINANCE (VEC3){LASER_LUMINANCE.r*8.0f,LASER_LUMINANCE.g*8.0f,LASER_LUMINANCE.b*8.0f}
 #define ENT_LASER_LUMINANCE (VEC3){LASER_LUMINANCE.r*0.125f,LASER_LUMINANCE.g*0.125f,LASER_LUMINANCE.b*0.125f}
 
-#define BULLET_LUMINANCE (VEC3){0.1f,0.3f,0.1f}
-#define BULLET_SIZE 1.0f
-
-#define PLAYER_LUMINANCE (VEC3){2.0f,0.02f,0.02f}
-#define PLAYER_SIZE 2.5f
-#define PLAYER_WEAPON_COOLDOWN 60
-
-#define ENEMY_SIZE 1.7f
-
 #define CAM_AREA 0.0f
 
 #define PR_FRICTION 0.9f
@@ -51,14 +46,21 @@
 
 enum{
 	ITEM_NOTHING,
-	ITEM_MELEE 
+	ITEM_MELEE,
+	ITEM_PICKAXE,
+	ITEM_BOMB,
+	ITEM_LASER,
+	ITEM_STONEDUST,
+	ITEM_LOG,
+	ITEM_TORCH
 };
 
 enum{
-	PLAYER_SPRITE,
-	BULLET_SPRITE,
-	CROSSHAIR_SPRITE,
-	ENEMY_SPRITE
+	SPRITE_PLAYER,
+	SPRITE_BULLET,
+	SPRITE_CROSSHAIR,
+	SPRITE_ENEMY,
+	SPRITE_BLOCK_PARTICLE
 };
 
 enum{
@@ -66,7 +68,16 @@ enum{
 	BLOCK_NORMAL,
 	BLOCK_LIGHT,
 	BLOCK_ENTITY,
-	BLOCK_SPRINKLER
+	BLOCK_SPRINKLER,
+	BLOCK_TREE,
+	BLOCK_BUILDING
+};
+
+enum{
+	MENU_GAME,
+	MENU_SETTING,
+	MENU_CRAFTING,
+	MENU_CONSTRUCT
 };
 
 typedef struct{
@@ -76,38 +87,10 @@ typedef struct{
 }RGB;
 
 typedef struct{
-	u1 item_equiped;
-	u1 item[9];
-}INVENTORY;
-
-typedef struct{
-	u4 health;
-	u4 energy;
-	u4 scrap;
-	u4 flashlight;
-	u4 weapon_cooldown;
-	u4 respawn_countdown;
-	VEC2 vel;
-	VEC2 pos;
-}PLAYER;
-
-typedef struct{
 	VEC2 pos;
 	i4 zoom;
+	f4 shake;
 }CAMERA;
-
-typedef struct{
-	VEC2 vel;
-	VEC2 pos;
-	VEC3 luminance;
-	u4 health;
-	u1 aggressive;
-}ENEMY;
-
-typedef struct{
-	u4 cnt;
-	ENEMY* state;
-}ENEMYHUB;
 
 typedef struct{
 	VEC2 pos_org;
@@ -130,23 +113,40 @@ typedef struct{
 	BLOCKENTITY* state;
 }BLOCKENTITYHUB;
 
+typedef struct{
+	u1 d;
+	u1 w;
+	u1 a;
+	u1 s;
+	u1 mouse_right;
+}KEYS;
+
+typedef struct{
+	u1 type;
+	u1 health;
+}MAP;
+
+u4 coordToMap(u4 x,u4 y);
 void genMap(IVEC2 crd,u4 offset,u4 depth,f4 value);
-VEC2 getCursorPos();
 VEC2 getCursorPosMap();
 VEC2 getCursorPosGUI();
 u1* loadFile(u1* name);
 RGB* loadBMP(u1* name);
 VEC2 entityPull(VEC2 entity,VEC2 destination,f4 power);
 void collision(VEC2* pos,VEC2 vel,f4 size);
+VEC2 getInventoryPos(u4 place);
+u1 pointAABBcollision(VEC2 point,VEC2 aabb,VEC2 size);
+u1 AABBcollision(VEC2 pos1,VEC2 pos2,f4 size1,f4 size2);
 
-extern u1* map;
+extern MAP* map;
 extern LASERHUB  laser;
-extern ENEMYHUB  entity_dark;
 extern BLOCKENTITYHUB entity_block;
-extern INVENTORY inventory;
-extern PLAYER player;
 extern CAMERA camera;
 extern CAMERA camera_new;
 extern RGB*  vram;
 extern RGB* texture16;
+extern RGB* building_texture;
 extern VEC3* vramf;
+extern KEYS key_pressed;
+extern RGB* tile_texture_data;
+extern u1 menu_select;

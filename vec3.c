@@ -6,6 +6,12 @@ VEC3 VEC3mulR(VEC3 p,f4 m){
 	return (VEC3){p.x*m,p.y*m,p.z*m};
 }
 
+void VEC3add(VEC3* p,f4 a){
+	p->x += a;
+	p->y += a;
+	p->z += a;
+}
+
 void VEC3mul(VEC3* p,f4 m){
 	p->x *= m;
 	p->y *= m;

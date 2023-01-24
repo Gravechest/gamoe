@@ -23,7 +23,7 @@ typedef struct{
 void drawSprite(VEC2 pos,VEC2 size,VEC2 texture_pos);
 void drawEnemy(VEC2 pos,VEC2 size,VEC2 texture_pos,VEC3 luminance);
 void drawMap();
-void drawLaser(VEC2 origin,VEC2 destination,VEC3 color);
+void drawLine(VEC2 origin,VEC2 destination,VEC3 color,f4 thickness);
 void drawParticle(VEC2 pos,VEC2 size,VEC3 luminance);
 void drawRect(VEC2 pos,VEC2 size,VEC3 color);
 void drawString(VEC2 pos,VEC2 size,u1* string);

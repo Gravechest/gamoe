@@ -5,22 +5,24 @@
 
 #include "opengl.h"
 #include "source.h"
-#include "textures.h"
 #include "draw.h"
 #include "tmath.h"
 #include "chunk.h"
 #include "ivec2.h"	
 #include "lighting.h"
 #include "entity_light.h"
+#include "player.h"
+#include "entity_item.h"
+#include "entity_dark.h"
+#include "entity_togui.h"
+#include "gui.h"
+#include "inventory.h"
 
 u4 VBO;
-u4 texture,map_texture,sprite_texture,font_texture;
-u4 sprite_shader,map_shader,entity_dark_shader,color_shader,particle_shader,font_shader;
+u4 texture,map_texture,sprite_texture,font_texture,tile_texture;
+u4 sprite_shader,map_shader,entity_dark_shader,color_shader,particle_shader,font_shader,enemy_shader;
 OPENGLQUEUE gl_queue;
 RGB* font_texture_data;
-
-u4 entity_shadows_cnt;
-IVEC2 entity_shadows[255];
 
 VEC2 mapCrdToRenderCrd(VEC2 p){
 	return (VEC2){((p.x-camera.pos.x)/(camera.zoom/2.0f/RD_CMP)*1.015625f-0.0078125f-1.0f),((p.y-camera.pos.y))/(camera.zoom/2.0f)*1.015625f-0.015625f-1.0f};
@@ -28,6 +30,10 @@ VEC2 mapCrdToRenderCrd(VEC2 p){
 
 VEC2 screenCrdToRenderCrd(VEC2 p){
 	return (VEC2){((p.x)/(CHUNK_SIZE/2.0f/RD_CMP)-1.0f),(p.y)/(CHUNK_SIZE/2.0f)-1.0f};
+}
+
+VEC2 texture16Render(u4 number){
+	return (VEC2){(f4)(number%TEXTURE16_ROW_COUNT)/TEXTURE16_ROW_COUNT,(f4)(number/TEXTURE16_ROW_COUNT)/TEXTURE16_ROW_COUNT};
 }
 
 u4 loadShader(u1* fragment,u1* vertex){
@@ -80,6 +86,13 @@ void openglInit(){
 	font_shader         = loadShader("shader/font.frag","shader/vertex.vert");
 
 	font_texture_data = loadBMP("img/font.bmp");
+	texture16         = loadBMP("img/texture16.bmp");
+
+	for(u4 i = 0;i < TEXTURE16_ROW_SIZE*TEXTURE16_ROW_SIZE;i++){
+		u1 r = texture16[i].r;
+		texture16[i].r = texture16[i].b;
+		texture16[i].b = r;
+	}
 
 	glCreateBuffers(1,&VBO);
 	glBindBuffer(GL_ARRAY_BUFFER,VBO);
@@ -88,6 +101,7 @@ void openglInit(){
 	glGenTextures(1,&map_texture);
 	glGenTextures(1,&font_texture);
 	glGenTextures(1,&sprite_texture);
+	glGenTextures(1,&tile_texture);
 
 	glActiveTexture(GL_TEXTURE0);
 	glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_NEAREST);
@@ -105,9 +119,16 @@ void openglInit(){
 	glBindTexture(GL_TEXTURE_2D,map_texture);
 	glUseProgram(map_shader);
 	glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_NEAREST);
-	glTexImage2D(GL_TEXTURE_2D,0,GL_R8,SIM_SIZE,SIM_SIZE,0,GL_RED,GL_UNSIGNED_BYTE,map);
+	glTexImage2D(GL_TEXTURE_2D,0,GL_RG8,SIM_SIZE,SIM_SIZE,0,GL_RG,GL_UNSIGNED_BYTE,map);
 	glGenerateMipmap(GL_TEXTURE_2D);
 	glUniform1i(glGetUniformLocation(map_shader,"map"),1);
+
+	glActiveTexture(GL_TEXTURE4);
+	glBindTexture(GL_TEXTURE_2D,tile_texture);
+	glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_NEAREST);
+	glTexImage2D(GL_TEXTURE_2D,0,GL_RGB,SIM_SIZE*TILE_TEXTURE_SIZE,SIM_SIZE*TILE_TEXTURE_SIZE,0,GL_RGB,GL_UNSIGNED_BYTE,tile_texture_data);
+	glGenerateMipmap(GL_TEXTURE_2D);
+	glUniform1i(glGetUniformLocation(map_shader,"tile"),4);
 
 	glActiveTexture(GL_TEXTURE2);
 	glBindTexture(GL_TEXTURE_2D,sprite_texture);
@@ -126,13 +147,6 @@ void openglInit(){
 	glVertexAttribPointer(1,2,GL_FLOAT,0,4 * sizeof(float),(void*)(2 * sizeof(float)));
 }
 
-void GUIlootBoxEdge(VEC2 pos){
-	drawRect((VEC2){pos.x+0.36f,pos.y+0.04f},(VEC2){0.2f,0.005f},(VEC3){0.5f,0.5f,0.5f});
-	drawRect((VEC2){pos.x+0.36f,pos.y-0.04f},(VEC2){0.2f,0.005f},(VEC3){0.5f,0.5f,0.5f});
-	drawRect((VEC2){pos.x+0.158f,pos.y},(VEC2){0.003f,0.045f},(VEC3){0.5f,0.5f,0.5f});
-	drawRect((VEC2){pos.x+0.563f,pos.y},(VEC2){0.003f,0.045f},(VEC3){0.5f,0.5f,0.5f});
-}
-
 void opengl(){
 	camera = camera_new;
 	if(player.pos.x - camera.zoom/2.0f - CAM_AREA > camera.pos.x){
@@ -140,7 +154,9 @@ void opengl(){
 		if(player.pos.x > CHUNK_SIZE*2){ 
 			worldLoadEast();
 			glActiveTexture(GL_TEXTURE1);
-			glTexSubImage2D(GL_TEXTURE_2D,0,0,0,SIM_SIZE,SIM_SIZE,GL_RED,GL_UNSIGNED_BYTE,map);
+			glTexSubImage2D(GL_TEXTURE_2D,0,0,0,SIM_SIZE,SIM_SIZE,GL_RG,GL_UNSIGNED_BYTE,map);
+			glActiveTexture(GL_TEXTURE4);
+			glTexSubImage2D(GL_TEXTURE_2D,0,0,0,SIM_SIZE*TILE_TEXTURE_SIZE,SIM_SIZE*TILE_TEXTURE_SIZE,GL_RGB,GL_UNSIGNED_BYTE,tile_texture_data);
 		}
 	}
 	if(player.pos.y - camera.zoom/2.0f - CAM_AREA > camera.pos.y){
@@ -148,7 +164,9 @@ void opengl(){
 		if(player.pos.y > CHUNK_SIZE*2){
 			worldLoadNorth();
 			glActiveTexture(GL_TEXTURE1);
-			glTexSubImage2D(GL_TEXTURE_2D,0,0,0,SIM_SIZE,SIM_SIZE,GL_RED,GL_UNSIGNED_BYTE,map);
+			glTexSubImage2D(GL_TEXTURE_2D,0,0,0,SIM_SIZE,SIM_SIZE,GL_RG,GL_UNSIGNED_BYTE,map);
+			glActiveTexture(GL_TEXTURE4);
+			glTexSubImage2D(GL_TEXTURE_2D,0,0,0,SIM_SIZE*TILE_TEXTURE_SIZE,SIM_SIZE*TILE_TEXTURE_SIZE,GL_RGB,GL_UNSIGNED_BYTE,tile_texture_data);
 		}
 	}
 	if(player.pos.x - camera.zoom/2.0f + CAM_AREA < camera.pos.x){
@@ -156,7 +174,9 @@ void opengl(){
 		if(player.pos.x < CHUNK_SIZE){
 			worldLoadWest();
 			glActiveTexture(GL_TEXTURE1);
-			glTexSubImage2D(GL_TEXTURE_2D,0,0,0,SIM_SIZE,SIM_SIZE,GL_RED,GL_UNSIGNED_BYTE,map);
+			glTexSubImage2D(GL_TEXTURE_2D,0,0,0,SIM_SIZE,SIM_SIZE,GL_RG,GL_UNSIGNED_BYTE,map);
+			glActiveTexture(GL_TEXTURE4);
+			glTexSubImage2D(GL_TEXTURE_2D,0,0,0,SIM_SIZE*TILE_TEXTURE_SIZE,SIM_SIZE*TILE_TEXTURE_SIZE,GL_RGB,GL_UNSIGNED_BYTE,tile_texture_data);
 		}
 	}
 	if(player.pos.y - camera.zoom/2.0f + CAM_AREA < camera.pos.y){
@@ -164,17 +184,35 @@ void opengl(){
 		if(player.pos.y < CHUNK_SIZE){
 			worldLoadSouth();
 			glActiveTexture(GL_TEXTURE1);
-			glTexSubImage2D(GL_TEXTURE_2D,0,0,0,SIM_SIZE,SIM_SIZE,GL_RED,GL_UNSIGNED_BYTE,map);
+			glTexSubImage2D(GL_TEXTURE_2D,0,0,0,SIM_SIZE,SIM_SIZE,GL_RG,GL_UNSIGNED_BYTE,map);
+			glActiveTexture(GL_TEXTURE4);
+			glTexSubImage2D(GL_TEXTURE_2D,0,0,0,SIM_SIZE*TILE_TEXTURE_SIZE,SIM_SIZE*TILE_TEXTURE_SIZE,GL_RGB,GL_UNSIGNED_BYTE,tile_texture_data);
 		}
 	}
+	VEC2addVEC2(&camera.pos,(VEC2){(tRnd()-1.5f)*camera.shake,(tRnd()-1.5f)*camera.shake});
 	glClear(GL_COLOR_BUFFER_BIT);
 	while(gl_queue.cnt){
 		switch(gl_queue.message[--gl_queue.cnt].id){
+		case GLMESSAGE_BLOCK_TILEEDIT:{
+			glActiveTexture(GL_TEXTURE4);
+			IVEC2 p = gl_queue.message[gl_queue.cnt].pos;
+			glTexSubImage2D(GL_TEXTURE_2D,0,p.x*TILE_TEXTURE_SIZE,p.y*TILE_TEXTURE_SIZE,TILE_TEXTURE_SIZE,TILE_TEXTURE_SIZE,GL_RGB,GL_UNSIGNED_BYTE,tile_texture_data+p.x*SIM_SIZE*TILE_TEXTURE_SURFACE+p.y*TILE_TEXTURE_SIZE);
+			break;
+		}
+		case GLMESSAGE_WHOLE_TILEEDIT:
+			glActiveTexture(GL_TEXTURE4);
+			glTexSubImage2D(GL_TEXTURE_2D,0,0,0,SIM_SIZE*TILE_TEXTURE_SIZE,SIM_SIZE*TILE_TEXTURE_SIZE,GL_RGB,GL_UNSIGNED_BYTE,tile_texture_data);
+			break;
+		case GLMESSAGE_SINGLE_TILEEDIT:{
+			glActiveTexture(GL_TEXTURE4);
+			IVEC2 p = gl_queue.message[gl_queue.cnt].pos;
+			glTexSubImage2D(GL_TEXTURE_2D,0,p.x,p.y,1,1,GL_RGB,GL_UNSIGNED_BYTE,tile_texture_data+p.x*SIM_SIZE*TILE_TEXTURE_SIZE+p.y);
+			break;
+		}
 		case GLMESSAGE_SINGLE_MAPEDIT:{
 			glActiveTexture(GL_TEXTURE1);
 			IVEC2 p = gl_queue.message[gl_queue.cnt].pos;
-			glTexSubImage2D(GL_TEXTURE_2D,0,p.x,p.y,1,1,GL_RGB,GL_UNSIGNED_BYTE,map+p.y*SIM_SIZE+p.x);
-			glActiveTexture(GL_TEXTURE0);
+			glTexSubImage2D(GL_TEXTURE_2D,0,p.x,p.y,1,1,GL_RG,GL_UNSIGNED_BYTE,map+p.x*SIM_SIZE+p.y);
 			break;
 		}
 		case GLMESSAGE_WND_SIZECHANGE:
@@ -182,68 +220,111 @@ void opengl(){
 			break;
 		case GLMESSAGE_WHOLE_MAPEDIT:
 			glActiveTexture(GL_TEXTURE1);
-			glTexSubImage2D(GL_TEXTURE_2D,0,0,0,SIM_SIZE,SIM_SIZE,GL_RED,GL_UNSIGNED_BYTE,map);
+			glTexSubImage2D(GL_TEXTURE_2D,0,0,0,SIM_SIZE,SIM_SIZE,GL_RG,GL_UNSIGNED_BYTE,map);
 			break;
 		}
 	}
-	entity_shadows_cnt = 0;
-	for(u4 i = 0;i < entity_dark.cnt;i++){
-		f4 dv = ENEMY_SIZE/(u4)(ENEMY_SIZE+1);
-		for(f4 x = entity_dark.state[i].pos.x-ENEMY_SIZE*0.5f;x <= entity_dark.state[i].pos.x+ENEMY_SIZE*0.5f;x+=dv){
-			for(f4 y = entity_dark.state[i].pos.y-ENEMY_SIZE*0.5f;y <= entity_dark.state[i].pos.y+ENEMY_SIZE*0.5f;y+=dv){
-				if(map[(u4)y*SIM_SIZE+(u4)x]==BLOCK_AIR){
-					map[(u4)y*SIM_SIZE+(u4)x] = BLOCK_ENTITY;
-					entity_shadows[entity_shadows_cnt++] = (IVEC2){x,y};
-				}
-			}
-		}
-	}
-	if(player.flashlight){
-		VEC2 angle = VEC2subVEC2R(getCursorPosMap(),VEC2subVEC2R(player.pos,camera.pos));
-		lightsourcePartEmit(PLAYER_LUMINANCE,player.pos,angle,128,0.15f);
-	}
-	for(u4 i = 0;i < entity_light.cnt;i++){
-		lightsourceEmit(entity_light.state[i].color,entity_light.state[i].pos,1024);
-	}
-	for(u4 i = 0;i < laser.cnt;i++){
-		VEC2 normalize_pos = VEC2subVEC2R(laser.state[i].pos_dst,laser.state[i].pos_org);
-		VEC2 direction = VEC2normalizeR(normalize_pos);
-		u4 dst = VEC2length(normalize_pos);
-		VEC2 pos = laser.state[i].pos_org;
-		for(u4 j = 0;j < dst;j++){
-			lightsourceEmit(LASER_LUMINANCE,pos,1024);
-			VEC2addVEC2(&pos,direction);
-		}
-		if(laser.state[i].health == 1) laser.state[i].health = 0;
-	}
-	for(u4 i = 0;i < entity_shadows_cnt;i++){
-		map[entity_shadows[i].y*SIM_SIZE+entity_shadows[i].x] = BLOCK_AIR;
-	}
+	lighting();
 	for(u4 i = 0;i < camera.zoom*camera.zoom;i++){
 		vram[i].r = tMinf(vramf[i].r,255.0f);
 		vram[i].g = tMinf(vramf[i].g,255.0f);
 		vram[i].b = tMinf(vramf[i].b,255.0f);
 	}
 	drawMap();
-	glUseProgram(sprite_shader);
-	if(player.health) drawSprite(mapCrdToRenderCrd(player.pos),RD_SQUARE(PLAYER_SIZE),TEXTURE16_RENDER(PLAYER_SPRITE));
-	drawSprite(getCursorPosGUI(),RD_GUI(2.5f),TEXTURE16_RENDER(CROSSHAIR_SPRITE));
+	
+	glUseProgram(color_shader);
 
-	for(u4 i = 0;i < 9;i++){
-		VEC2 draw_pos = VEC2addVEC2R((VEC2){i/3/6.0f,i%3/4.5f},GUI_INVENTORY);
-		if(inventory.item[i]) drawSprite(draw_pos,RD_GUI(4000.0f),VEC2_ZERO);
+	GUIdrawInventorySlots();
+
+	drawRect((VEC2){0.13f,0.0f},(VEC2){0.01f,1.0f},(VEC3){0.7f,0.0f,0.0f});
+	for(u4 i = 0;i < laser.cnt;i++){
+		VEC2 pos_1 = mapCrdToRenderCrd(laser.state[i].pos_org);
+		VEC2 pos_2 = mapCrdToRenderCrd(laser.state[i].pos_dst);
+		VEC3 color = RD_LASER_LUMINANCE;
+		drawLine(pos_1,pos_2,color,1.0f);
 	}
-	if(inventory.item_equiped) drawSprite(GUI_EQUIPED,RD_GUI(8.0f),texture16Render(inventory.item_equiped+3));
+	if(player.weapon_cooldown){
+		if(player.melee_progress){
+			VEC2 pos_dst = VEC2normalizeR(playerLookDirection());
+			VEC2 pos_src = player.pos;
+			switch(inventory.item_primary.type){
+			case ITEM_NOTHING:{
+				VEC2 offset = VEC2rotR(pos_dst,PI*0.5f);
+				VEC2div(&offset,2.4f);
+				VEC2mul(&pos_dst,sinf((f4)player.melee_progress/PLAYER_FIST_COOLDOWN*PI)*1.8f);
+				if(player.fist_side){
+					VEC2addVEC2(&pos_dst,offset);
+					VEC2addVEC2(&pos_src,offset);
+				}
+				else{
+					VEC2subVEC2(&pos_dst,offset);
+					VEC2subVEC2(&pos_src,offset);
+				}
+				VEC2addVEC2(&pos_dst,player.pos);
+				drawLine(mapCrdToRenderCrd(pos_src),mapCrdToRenderCrd(pos_dst),(VEC3){0.7f,0.1f,0.1f},RD_MAP_CONVERT(0.2f));
+				break;
+			}
+			case ITEM_MELEE:
+				VEC2mul(&pos_dst,cosf((f4)player.melee_progress/PLAYER_MELEE_COOLDOWN*PI+PI*0.5f)*3.0f);
+				VEC2addVEC2(&pos_dst,player.pos);
+				drawLine(mapCrdToRenderCrd(pos_src),mapCrdToRenderCrd(pos_dst),(VEC3){0.7f,0.1f,0.1f},RD_MAP_CONVERT(1.0f));
+				break;
+			}
+		}
+		f4 progress;
+		switch(inventory.item_primary.type){
+		case ITEM_NOTHING:
+			progress = 1.25f-1.25f*player.weapon_cooldown/PLAYER_FIST_COOLDOWN;
+			break;
+		case ITEM_LASER:
+			progress = 1.25f-1.25f*player.weapon_cooldown/PLAYER_LASER_COOLDOWN;
+			break;
+		case ITEM_MELEE:
+			progress = 1.25f-1.25f*player.weapon_cooldown/PLAYER_MELEE_COOLDOWN;
+			break;
+		}
+		VEC2 pos = player.pos;
+		pos.x += progress - 1.25f;
+		pos.y += 2.0f;
+		drawRect(mapCrdToRenderCrd(pos),((VEC2){progress/camera.zoom,0.5f/camera.zoom}),(VEC3){0.2f,0.5f,0.0f});
+	}
 
+	glUseProgram(sprite_shader);
+	if(player.health) drawSprite(mapCrdToRenderCrd(player.pos),RD_SQUARE(PLAYER_SIZE),TEXTURE16_RENDER(SPRITE_PLAYER));
+	for(u4 i = 0;i < 9;i++){
+		VEC2 draw_pos = VEC2addVEC2R(VEC2mulVEC2R((VEC2){i/3,i%3},GUI_INVENTORY_SLOT_OFFSET),GUI_INVENTORY);
+		if(inventory.item[i].type && inventory.item[i].visible){
+			drawSprite(draw_pos,RD_GUI(GUI_ITEM_SIZE),texture16Render(inventory.item[i].type+ITEM_SPRITE_OFFSET));
+		}
+	}
+	if(inventory.item_primary.type && inventory.item_primary.visible){
+		drawSprite(GUI_EQUIPED,RD_GUI(GUI_ITEM_SIZE),texture16Render(inventory.item_primary.type+ITEM_SPRITE_OFFSET));
+	}
 	glUseProgram(entity_dark_shader);
+	for(u4 i = 0;i < entity_item.cnt;i++){
+		VEC3mul(&entity_item.state[i].luminance,0.008f);
+		VEC2 draw_pos = mapCrdToRenderCrd(entity_item.state[i].pos);
+		VEC2 draw_size = RD_SQUARE(entity_item.state[i].size);
+		switch(entity_item.state[i].type){
+		case ENTITY_BLOCK_PARTICLE:
+			drawEnemy(draw_pos,draw_size,TEXTURE16_RENDER(SPRITE_BLOCK_PARTICLE),entity_item.state[i].luminance);
+			break;
+		case ENTITY_ITEM:
+			VEC3add(&entity_item.state[i].luminance,(f4)entity_item.state[i].pickup_countdown/50.0f);
+			drawEnemy(draw_pos,draw_size,texture16Render(ITEM_SPRITE_OFFSET+entity_item.state[i].item_type),entity_item.state[i].luminance);
+			break;
+		}
+		entity_item.state[i].luminance = VEC3_ZERO;
+	}
 	for(u4 i = 0;i < entity_dark.cnt;i++){
 		VEC2 relative_pos = VEC2subVEC2R(entity_dark.state[i].pos,camera.pos);
 		if(relative_pos.x>0.0f&&relative_pos.x<camera.zoom&&relative_pos.y>0.0f&&relative_pos.y<camera.zoom){
 			VEC3mul(&entity_dark.state[i].luminance,0.025f);
-			drawEnemy(mapCrdToRenderCrd(entity_dark.state[i].pos),RD_SQUARE(ENEMY_SIZE),TEXTURE16_RENDER(ENEMY_SPRITE),entity_dark.state[i].luminance);
-			entity_dark.state[i].luminance = (VEC3){0.0f,0.0f,0.0f};
+			drawEnemy(mapCrdToRenderCrd(entity_dark.state[i].pos),RD_SQUARE(ENEMY_SIZE),TEXTURE16_RENDER(SPRITE_ENEMY),entity_dark.state[i].luminance);
+			entity_dark.state[i].luminance = VEC3_ZERO;
 		}
 	}
+
 	glUseProgram(particle_shader);
 	for(u4 i = 0;i < entity_light.cnt;i++){
 		VEC2 pos   = mapCrdToRenderCrd(entity_light.state[i].pos);
@@ -251,62 +332,13 @@ void opengl(){
 		VEC3 color = VEC3mulR(VEC3normalizeR(entity_light.state[i].color),1.5f);
 		drawParticle(pos,size,color);
 	}
-	glUseProgram(color_shader);
-	for(u4 i = 0;i < 9;i++){
-		VEC2 draw_pos = VEC2addVEC2R((VEC2){i/3/7.0f,i%3/(7.0f*RD_CMP)},GUI_INVENTORY);
-		drawRect(VEC2addVEC2R(draw_pos,(VEC2){0.0f,0.075f}),(VEC2){0.03f,0.005f},(VEC3){0.5f,0.5f,0.5f});
-		drawRect(VEC2addVEC2R(draw_pos,(VEC2){0.0f,-0.075f}),(VEC2){0.03f,0.005f},(VEC3){0.5f,0.5f,0.5f});
-		drawRect(VEC2addVEC2R(draw_pos,(VEC2){0.075f*RD_CMP,0.0f}),(VEC2){0.003f,0.05f},(VEC3){0.5f,0.5f,0.5f});
-		drawRect(VEC2addVEC2R(draw_pos,(VEC2){-0.075f*RD_CMP,0.0f}),(VEC2){0.003f,0.05f},(VEC3){0.5f,0.5f,0.5f});
-	}
-	drawRect(VEC2addVEC2R(GUI_EQUIPED,(VEC2){0.0f,0.075f}),(VEC2){0.03f,0.005f},(VEC3){0.5f,0.5f,0.5f});
-	drawRect(VEC2addVEC2R(GUI_EQUIPED,(VEC2){0.0f,-0.075f}),(VEC2){0.03f,0.005f},(VEC3){0.5f,0.5f,0.5f});
-	drawRect(VEC2addVEC2R(GUI_EQUIPED,(VEC2){0.075f*RD_CMP,0.0f}),(VEC2){0.003f,0.05f},(VEC3){0.5f,0.5f,0.5f});
-	drawRect(VEC2addVEC2R(GUI_EQUIPED,(VEC2){-0.075f*RD_CMP,0.0f}),(VEC2){0.003f,0.05f},(VEC3){0.5f,0.5f,0.5f});
 
-	drawRect((VEC2){0.13f,0.0f},(VEC2){0.01f,1.0f},(VEC3){0.7f,0.0f,0.0f});
-	for(u4 i = 0;i < laser.cnt;i++){
-		VEC2 pos_1 = mapCrdToRenderCrd(laser.state[i].pos_org);
-		VEC2 pos_2 = mapCrdToRenderCrd(laser.state[i].pos_dst);
-		VEC3 color = RD_LASER_LUMINANCE;
-		drawLaser(pos_1,pos_2,color);
-	}
-	if(player.weapon_cooldown){
-		f4 progress = 0.01f-0.01f*player.weapon_cooldown/60.0f;
-		VEC2 pos = mapCrdToRenderCrd(player.pos);
-		pos.x += progress - 0.01f;
-		pos.y += 0.05f;
-		drawRect(pos,(VEC2){progress,0.005f},(VEC3){0.2f,0.5f,0.0f});
-	}
-
-	f4 energy = (f4)player.energy/5.0f/ENERGY_MAX;
-	drawRect((VEC2){GUI_ENERGY.x+0.16f+energy,GUI_ENERGY.y},(VEC2){energy,0.04f},LOOT_ENERGY_COLOR);
-	GUIlootBoxEdge(GUI_ENERGY);
-
-	f4 health = (f4)player.health/5.0f/HEALTH_MAX;
-	drawRect((VEC2){GUI_HEALTH.x+0.16f+health,GUI_HEALTH.y},(VEC2){health,0.04f},LOOT_HEALTH_COLOR);
-	GUIlootBoxEdge(GUI_HEALTH);
-
-	f4 scrap = (f4)player.scrap/5.0f/SCRAP_MAX;
-	drawRect((VEC2){GUI_SCRAP.x+0.16f+scrap,GUI_SCRAP.y},(VEC2){scrap,0.04f},LOOT_SCRAP_COLOR);
-	GUIlootBoxEdge(GUI_SCRAP);
-
-	glActiveTexture(GL_TEXTURE3);
 	glUseProgram(font_shader);
-	drawString(GUI_ENERGY,RD_GUI(2.5f),"energy=");
-	drawString(GUI_HEALTH,RD_GUI(2.5f),"health=");
-	drawString(GUI_SCRAP,RD_GUI(2.5f),"scrap =");
-	u1 str[80];
-	sprintf(str,"%i/%i",player.energy,ENERGY_MAX);
-	drawString((VEC2){GUI_ENERGY.x+0.18f,GUI_ENERGY.y},RD_GUI(2.5f),str);
-	sprintf(str,"%i/%i",player.health,HEALTH_MAX);
-	drawString((VEC2){GUI_HEALTH.x+0.18f,GUI_HEALTH.y},RD_GUI(2.5f),str);
-	sprintf(str,"%i/%i",player.scrap,SCRAP_MAX);
-	drawString((VEC2){GUI_SCRAP.x+0.18f,GUI_SCRAP.y},RD_GUI(2.5f),str);
-	static u8 t,t2;
-	QueryPerformanceCounter(&t2);
-	sprintf(str,"ns/frame: %i",(t2-t)/10);
-	QueryPerformanceCounter(&t);
-	drawString((VEC2){0.3f,0.3f},RD_GUI(2.5f),str);
+	GUIdraw();
+
+	for(u4 i = 0;i < entity_togui.cnt;i++){
+		drawSprite(entity_togui.state[i].pos,RD_GUI(entity_togui.state[i].size),texture16Render(entity_togui.state[i].type+ITEM_SPRITE_OFFSET));
+	}
+
 	memset(vramf,0,sizeof(VEC3)*camera.zoom*camera.zoom);
 }

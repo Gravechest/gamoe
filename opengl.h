@@ -9,15 +9,10 @@
 
 #define VSYNC 0
 
-#define GUI_ENERGY (VEC2){0.18f,0.9f}
-#define GUI_HEALTH (VEC2){0.18f,0.8f}
-#define GUI_SCRAP  (VEC2){0.18f,0.7f}
-#define GUI_EQUIPED (VEC2){GUI_INVENTORY.x,GUI_INVENTORY.y-0.3f}
-#define GUI_INVENTORY (VEC2){0.24f,-0.55f}
-
 #define RD_CMP 0.5625f
 #define RD_CONVERT(X) (X*0.0072f)
 #define RD_GUI(X) (VEC2){RD_CONVERT(X)*RD_CMP,RD_CONVERT(X)}
+#define RD_MAP_CONVERT(X) ((f4)X/camera.zoom)
 #define RD_SQUARE(X) VEC2mulR((VEC2){RD_CONVERT(X)*RD_CMP,RD_CONVERT(X)},128.0f/camera.zoom)
 
 #define GL_ARRAY_BUFFER 0x8892
@@ -34,11 +29,23 @@
 #define GL_TEXTURE6 0x84C6
 
 #define GL_R8 0x8229
+#define GL_RG 0x8227
+#define GL_RG8 0x822B
+
+#define TEXTURE16_SIZE 16
+#define TEXTURE16_ROW_COUNT 8
+#define TEXTURE16_ROW_SIZE (TEXTURE16_SIZE*TEXTURE16_ROW_COUNT)
+#define TEXTURE16_RD_SIZE (1.0f/TEXTURE16_ROW_COUNT)
+#define TEXTURE16_OFFSET(X) (X/TEXTURE16_ROW_COUNT*TEXTURE16_ROW_SIZE*TEXTURE16_SIZE+X%TEXTURE16_ROW_COUNT*TEXTURE16_SIZE)
+#define TEXTURE16_RENDER(X) (VEC2){(f4)((X)%TEXTURE16_ROW_COUNT)/TEXTURE16_ROW_COUNT,(f4)((X)/TEXTURE16_ROW_COUNT)/TEXTURE16_ROW_COUNT}
 
 enum{
 	GLMESSAGE_SINGLE_MAPEDIT,
 	GLMESSAGE_WND_SIZECHANGE,
-	GLMESSAGE_WHOLE_MAPEDIT
+	GLMESSAGE_WHOLE_MAPEDIT,
+	GLMESSAGE_SINGLE_TILEEDIT,
+	GLMESSAGE_WHOLE_TILEEDIT,
+	GLMESSAGE_BLOCK_TILEEDIT
 };
 
 typedef struct{
@@ -85,6 +92,8 @@ void (*glUniform3f)(i4 loc,f4 v1,f4 v2,f4 v3);
 
 void openglInit();
 void opengl();
+VEC2 mapCrdToRenderCrd(VEC2 p);
+VEC2 texture16Render(u4 number);
 
-extern u4 sprite_shader,map_shader,entity_dark_shader,color_shader,particle_shader;
+extern u4 sprite_shader,map_shader,entity_dark_shader,color_shader,particle_shader,font_shader,enemy_shader;
 extern OPENGLQUEUE gl_queue;

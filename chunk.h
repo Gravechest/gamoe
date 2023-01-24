@@ -2,6 +2,7 @@
 
 #include "small_types.h"
 #include "ivec2.h"
+#include "source.h"
 
 #define CHUNK_ENTITY_MOVE(TYPE,SIZE) for(u4 J = 0;J < TYPE.cnt;J++){                                     \
 		TYPE.state[J].pos.a[axis] += direction;                                                          \
@@ -15,7 +16,7 @@ typedef struct{
 		IVEC2 crd;
 		u8 id;
 	};
-	u1* chunk;
+	MAP* chunk;
 }CHUNK;
 
 typedef struct{
@@ -28,6 +29,10 @@ void worldLoadWest();
 void worldLoadNorth();
 void worldLoadSouth();
 void worldLoadSpawn();
+u4 posToTileTexture(VEC2 pos);
+IVEC2 posToTileTextureCoord(VEC2 pos);
+u4 coordToTileTexture(u4 x,u4 y);
+void tileTextureGen(VEC2 red,VEC2 green,VEC2 blue,u4 m_loc);
 
 extern CHUNKHUB chunk;
 extern IVEC2 current_chunk;
