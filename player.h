@@ -10,6 +10,9 @@
 #define PLAYER_MELEE_COOLDOWN 30
 #define PLAYER_FIST_COOLDOWN 20
 
+#define PLAYER_MELEE_ATTACKDURATION 30
+#define PLAYER_FIST_ATTACKDURATION  20
+
 #include "vec2.h"
 #include "small_types.h"
 
@@ -18,23 +21,29 @@ enum{
 	BLOCKHIT_NORMAL
 };
 
+enum{
+	PLAYERATTACK_PRIMARY,
+	PLAYERATTACK_SECUNDARY
+};
+
 typedef struct{
 	VEC2 vel;
 	VEC2 pos;
 	i4 health;
 	i4 energy;
 	i4 scrap;
-	u4 flashlight;
 	u4 weapon_cooldown;
 	u4 respawn_countdown;
 	u4 melee_progress;
 	u4 fist_side;
 }PLAYER;
 
-void playerAttack();
+void playerAttack(u1 hand);
 void playerGameTick();
 void playerHurt(u4 ammount);
 VEC2 playerLookDirection();
 VEC2 meleeHitPos();
+u4 blockHit(VEC2 hit_pos,u4 m_pos,u4 damage);
+u4 blockHitParticle(VEC2 hit_pos,u4 m_pos,u4 damage);
 
 extern PLAYER player;

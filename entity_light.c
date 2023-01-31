@@ -7,6 +7,7 @@
 #include "tmath.h"
 #include "opengl.h"
 #include "entity_item.h"
+#include "entity_dark.h"
 
 PARTICLEHUB entity_light;
 
@@ -52,15 +53,15 @@ void entityLightTick(){
 					entity_light.state[i].size *= 0.8f;
 				}
 			}
+			//explosion
 			else{
 				for(f4 j = 0.0f;j < 1.0f;j+=1.0f/255.0f){
 					VEC2 direction = (VEC2){cosf(j*PI*2.0f),sinf(j*PI*2.0f)};
 					RAY2D ray = ray2dCreate(entity_light.state[i].pos,direction);
 					while(ray.square_pos.x >= 0 && ray.square_pos.x < SIM_SIZE && ray.square_pos.y >= 0 && ray.square_pos.y < SIM_SIZE){
 						u4 m_pos = coordToMap(ray.square_pos.x,ray.square_pos.y);
-						if(map[m_pos].type == BLOCK_NORMAL){
-							if(map[m_pos].health <= 10) map[m_pos].type = BLOCK_AIR;
-							map[m_pos].health-=10;
+						if(map.type[m_pos] == BLOCK_NORMAL){
+							blockHit(ray2dGetCoords(ray),m_pos,10);
 							break;
 						}
 						ray2dIterate(&ray);
@@ -70,6 +71,16 @@ void entityLightTick(){
 				VEC2 spawn_pos = entity_light.state[i].pos;
 				for(u4 i = 0;i < 64;i++){
 					particleSpawn((VEC3){0.1f,0.01f,0.01f},spawn_pos,VEC2mulR(VEC2rndR(),(tRnd()-1.0f)),0.4f,tRnd()*30.0f);	
+				}
+				if(lineOfSight(player.pos,entity_light.state[i].pos)){
+					f4 dst = VEC2distance(player.pos,entity_light.state[i].pos);
+					playerHurt(800.0f/(dst*dst));
+				}
+				for(u4 j = 0;j < entity_dark.cnt;j++){
+					if(lineOfSight(entity_dark.state[j].pos,entity_light.state[i].pos)){
+						f4 dst = VEC2distance(entity_dark.state[j].pos,entity_light.state[i].pos);
+						entityDarkHurt(j,800.0f/(dst*dst));
+					}
 				}
 				camera_new.shake = 10.0f/VEC2distance(entity_light.state[i].pos,player.pos);
 				ENTITY_REMOVE(entity_light,i);

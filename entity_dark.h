@@ -21,5 +21,6 @@ typedef struct{
 }ENEMYHUB;
 
 void entityDarkTick();
+void entityDarkHurt(u4 id,u4 ammount);
 
 extern ENEMYHUB entity_dark;

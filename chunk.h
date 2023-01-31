@@ -16,7 +16,7 @@ typedef struct{
 		IVEC2 crd;
 		u8 id;
 	};
-	MAP* chunk;
+	MAP chunk;
 }CHUNK;
 
 typedef struct{
@@ -33,6 +33,7 @@ u4 posToTileTexture(VEC2 pos);
 IVEC2 posToTileTextureCoord(VEC2 pos);
 u4 coordToTileTexture(u4 x,u4 y);
 void tileTextureGen(VEC2 red,VEC2 green,VEC2 blue,u4 m_loc);
+u4 coordTileTextureToTileTexture(u4 x,u4 y);
 
 extern CHUNKHUB chunk;
 extern IVEC2 current_chunk;

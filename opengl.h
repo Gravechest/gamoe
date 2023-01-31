@@ -73,6 +73,7 @@ u4 (*wglSwapIntervalEXT)(u4 status);
 i4 (*glGetUniformLocation)(u4 program,i1* name);
 
 void (*glShaderSource)(u4 shader,i4 count,i1** string,i4* length);
+void (*glGetShaderInfoLog)(u4 shader,u4 max_length,u4 *lenght,u1 *info_log);
 void (*glCompileShader)(u4 shader);
 void (*glAttachShader)(u4 program,u4 shader);
 void (*glLinkProgram)(u4 program);

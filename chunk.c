@@ -9,6 +9,7 @@
 #include "entity_light.h"
 #include "player.h"
 #include "entity_dark.h"
+#include "entity_block.h"
 
 CHUNKHUB  chunk;
 IVEC2 current_chunk;
@@ -24,6 +25,10 @@ u4 mapToTileTexture(u4 m_loc){
 
 u4 coordToTileTexture(u4 x,u4 y){
 	return x*SIM_SIZE*TILE_TEXTURE_SURFACE+y*TILE_TEXTURE_SIZE;
+}
+
+u4 coordTileTextureToTileTexture(u4 x,u4 y){
+	return x*SIM_SIZE*TILE_TEXTURE_SIZE+y;
 }
 
 IVEC2 posToTileTextureCoord(VEC2 pos){
@@ -50,13 +55,13 @@ void tileTextureGen(VEC2 red,VEC2 green,VEC2 blue,u4 m_loc){
 void genMap(IVEC2 crd,u4 offset,u4 depth,f4 value){
 	if(!depth){
 		u4 m_loc = coordToMap(crd.x,crd.y)+offset;
-		map[m_loc].health = 0xff;
+		map.data[m_loc].health = 0xff;
 		if(value > 0.0f){
-			map[m_loc].type = BLOCK_NORMAL;
+			map.type[m_loc] = BLOCK_NORMAL;
 			tileTextureGen((VEC2){2.0f,64.0f},(VEC2){2.0f,64.0f},(VEC2){2.0f,64.0f},m_loc);
 		}
 		else if(tRnd() < 1.015f){
-			map[m_loc].type = BLOCK_TREE;
+			map.type[m_loc] = BLOCK_TREE;
 			tileTextureGen((VEC2){1.4f,64.0f},(VEC2){0.4f,32.0f},(VEC2){0.4f,32.0f},m_loc);
 		}
 		else{
@@ -115,14 +120,16 @@ void storeChunk(IVEC2 crd){
 				bound = k - 1;
 			}
 		}
-		chunk.state[location].chunk = HeapAlloc(GetProcessHeap(),0,CHUNK_SIZE*CHUNK_SIZE*sizeof(MAP));
+		chunk.state[location].chunk.data = HeapAlloc(GetProcessHeap(),0,CHUNK_SIZE*CHUNK_SIZE*sizeof(MAPDATA));
+		chunk.state[location].chunk.type = HeapAlloc(GetProcessHeap(),0,CHUNK_SIZE*CHUNK_SIZE);
 		for(i4 i = chunk.cnt;i >= location;i--){
 			chunk.state[i+1] = chunk.state[i];
 		}
 		chunk.state[location].crd = icrd.crd;
 		for(u4 x = 0;x < CHUNK_SIZE;x++){
 			for(u4 y = 0;y < CHUNK_SIZE;y++){
-				chunk.state[location].chunk[coordToChunk(x,y)] = map[coordToMap(x,y)+offset];
+				chunk.state[location].chunk.type[coordToChunk(x,y)] = map.type[coordToMap(x,y)+offset];
+				chunk.state[location].chunk.data[coordToChunk(x,y)] = map.data[coordToMap(x,y)+offset];
 			}
 		}
 		chunk.cnt++;
@@ -130,7 +137,8 @@ void storeChunk(IVEC2 crd){
 	else{
 		for(u4 x = 0;x < CHUNK_SIZE;x++){
 			for(u4 y = 0;y < CHUNK_SIZE;y++){
-				chunk.state[chunkID].chunk[coordToChunk(x,y)] = map[coordToMap(x,y)+offset];
+				chunk.state[chunkID].chunk.data[coordToChunk(x,y)] = map.data[coordToMap(x,y)+offset];
+				chunk.state[chunkID].chunk.type[coordToChunk(x,y)] = map.type[coordToMap(x,y)+offset];
 			}
 		}
 	}
@@ -146,8 +154,9 @@ void loadChunk(IVEC2 crd){
 		for(u4 x = 0;x < CHUNK_SIZE;x++){
 			for(u4 y = 0;y < CHUNK_SIZE;y++){
 				u4 m_loc = y*SIM_SIZE+x+offset;
-				map[m_loc] = chunk.state[chunkID].chunk[y*CHUNK_SIZE+x];
-				switch(map[coordToMap(x,y)+offset].type){
+				map.data[m_loc] = chunk.state[chunkID].chunk.data[y*CHUNK_SIZE+x];
+				map.type[m_loc] = chunk.state[chunkID].chunk.type[y*CHUNK_SIZE+x];
+				switch(map.type[coordToMap(x,y)+offset]){
 				case BLOCK_SPRINKLER:
 					entity_block.state[entity_block.cnt].pos = (IVEC2){m_loc/SIM_SIZE,m_loc%SIM_SIZE};
 					entity_block.state[entity_block.cnt++].countdown = 0;
@@ -181,12 +190,11 @@ void worldLoadSpawn(){
 	//make sure the spawnarea is clean
 	for(u4 x = player.pos.x - 3.0f;x < player.pos.x + 3.0f;x++){
 		for(u4 y = player.pos.y - 3.0f;y < player.pos.y + 3.0f;y++){
-			map[coordToMap(x,y)].type = BLOCK_AIR;
+			map.type[coordToMap(x,y)] = BLOCK_AIR;
 		}
 	}
-	map[coordToMap(SIM_SIZE/2,SIM_SIZE/2)].type = BLOCK_SPRINKLER;
 	for(u4 i = 0;i < SIM_SIZE_SURFACE;i++){
-		switch(map[i].type){
+		switch(map.type[i]){
 		case BLOCK_SPRINKLER:
 			entity_block.state[entity_block.cnt].pos = (IVEC2){i/SIM_SIZE,i%SIM_SIZE};
 			entity_block.state[entity_block.cnt++].countdown = 0;
@@ -202,7 +210,8 @@ void worldLoadEast(){
 	moveEntities(-CHUNK_SIZE,VEC2_X);
 	for(u4 x = 0;x < SIM_SIZE;x++){
 		for(u4 y = 0;y < CHUNK_SIZE*2;y++){
-			map[x*SIM_SIZE+y] = map[x*SIM_SIZE+y+CHUNK_SIZE];
+			map.type[x*SIM_SIZE+y] = map.type[x*SIM_SIZE+y+CHUNK_SIZE];
+			map.data[x*SIM_SIZE+y] = map.data[x*SIM_SIZE+y+CHUNK_SIZE];
 		}
 	}
 	for(u4 x = 0;x < SIM_SIZE*TILE_TEXTURE_SIZE;x++){
@@ -221,7 +230,8 @@ void worldLoadWest(){
 	moveEntities(CHUNK_SIZE,VEC2_X);
 	for(i4 x = SIM_SIZE-1;x >= 0;x--){
 		for(i4 y = CHUNK_SIZE*2-1;y >= 0;y--){
-			map[x*SIM_SIZE+y+CHUNK_SIZE] = map[x*SIM_SIZE+y];
+			map.data[x*SIM_SIZE+y+CHUNK_SIZE] = map.data[x*SIM_SIZE+y];
+			map.type[x*SIM_SIZE+y+CHUNK_SIZE]   = map.type[x*SIM_SIZE+y];
 		}
 	}
 	for(i4 x = SIM_SIZE*TILE_TEXTURE_SIZE-1;x >= 0;x--){
@@ -240,8 +250,8 @@ void worldLoadNorth(){
 	moveEntities(-CHUNK_SIZE,VEC2_Y);
 	memcpy(tile_texture_data,tile_texture_data+SIM_SIZE*CHUNK_SIZE*TILE_TEXTURE_SURFACE,SIM_SIZE*CHUNK_SIZE*TILE_TEXTURE_SURFACE);
 	memcpy(tile_texture_data+SIM_SIZE*CHUNK_SIZE*TILE_TEXTURE_SURFACE,tile_texture_data+SIM_SIZE*CHUNK_SIZE*TILE_TEXTURE_SURFACE*2,SIM_SIZE*CHUNK_SIZE*TILE_TEXTURE_SURFACE);
-	memcpy(map,map+SIM_SIZE*CHUNK_SIZE*sizeof(MAP),SIM_SIZE*CHUNK_SIZE*sizeof(MAP));
-	memcpy(map+SIM_SIZE*CHUNK_SIZE*sizeof(MAP),map+SIM_SIZE*CHUNK_SIZE*2*sizeof(MAP),SIM_SIZE*CHUNK_SIZE*sizeof(MAP));
+	memcpy(map.type,map.type+SIM_SIZE*CHUNK_SIZE,SIM_SIZE*CHUNK_SIZE);
+	memcpy(map.type+SIM_SIZE*CHUNK_SIZE,map.type+SIM_SIZE*CHUNK_SIZE*2,SIM_SIZE*CHUNK_SIZE);
 	current_chunk.y++;
 	for(i4 x = -1;x <= 1;x++) loadChunk((IVEC2){x,1});
 }
@@ -253,8 +263,8 @@ void worldLoadSouth(){
 	moveEntities(CHUNK_SIZE,VEC2_Y);
 	memcpy(tile_texture_data+SIM_SIZE*CHUNK_SIZE*TILE_TEXTURE_SURFACE*2,tile_texture_data+SIM_SIZE*CHUNK_SIZE*TILE_TEXTURE_SURFACE,SIM_SIZE*CHUNK_SIZE*TILE_TEXTURE_SURFACE);
 	memcpy(tile_texture_data+SIM_SIZE*CHUNK_SIZE*TILE_TEXTURE_SURFACE,tile_texture_data,SIM_SIZE*CHUNK_SIZE*TILE_TEXTURE_SURFACE);
-	memcpy(map+SIM_SIZE*CHUNK_SIZE*2*sizeof(MAP),map+SIM_SIZE*CHUNK_SIZE*sizeof(MAP),SIM_SIZE*CHUNK_SIZE*sizeof(MAP));
-	memcpy(map+SIM_SIZE*CHUNK_SIZE*sizeof(MAP),map,SIM_SIZE*CHUNK_SIZE*sizeof(MAP));
+	memcpy(map.type+SIM_SIZE*CHUNK_SIZE*2,map.type+SIM_SIZE*CHUNK_SIZE,SIM_SIZE*CHUNK_SIZE);
+	memcpy(map.type+SIM_SIZE*CHUNK_SIZE,map.type,SIM_SIZE*CHUNK_SIZE);
 	current_chunk.y--;
 	for(i4 x = -1;x <= 1;x++) loadChunk((IVEC2){x,-1});
 }

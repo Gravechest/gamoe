@@ -6,6 +6,10 @@
 #include "draw.h"
 #include "entity_light.h"
 #include "inventory.h"
+#include "entity_block.h"
+#include "construction.h"
+
+STRING console_input;
 
 void GUIframe(VEC2 pos,VEC2 size){
 	drawRect((VEC2){pos.x,pos.y+size.y},(VEC2){size.x+0.003f,0.005f},(VEC3){0.5f,0.5f,0.5f});
@@ -63,10 +67,15 @@ void GUIdrawInventorySlots(){
 		drawRect(VEC2addVEC2R(draw_pos,(VEC2){0.075f*RD_CMP,0.0f}),(VEC2){0.003f,0.05f},(VEC3){0.5f,0.5f,0.5f});
 		drawRect(VEC2addVEC2R(draw_pos,(VEC2){-0.075f*RD_CMP,0.0f}),(VEC2){0.003f,0.05f},(VEC3){0.5f,0.5f,0.5f});
 	}
-	drawRect(VEC2addVEC2R(GUI_EQUIPED,(VEC2){0.0f,0.075f}),(VEC2){0.03f,0.005f},GUI_EQUIPED_COLOR);
-	drawRect(VEC2addVEC2R(GUI_EQUIPED,(VEC2){0.0f,-0.075f}),(VEC2){0.03f,0.005f},GUI_EQUIPED_COLOR);
-	drawRect(VEC2addVEC2R(GUI_EQUIPED,(VEC2){0.075f*RD_CMP,0.0f}),(VEC2){0.003f,0.05f},GUI_EQUIPED_COLOR);
-	drawRect(VEC2addVEC2R(GUI_EQUIPED,(VEC2){-0.075f*RD_CMP,0.0f}),(VEC2){0.003f,0.05f},GUI_EQUIPED_COLOR);
+	drawRect(VEC2addVEC2R(GUI_PRIMARY,(VEC2){0.0f,0.075f}),(VEC2){0.03f,0.005f},GUI_PRIMARY_COLOR);
+	drawRect(VEC2addVEC2R(GUI_PRIMARY,(VEC2){0.0f,-0.075f}),(VEC2){0.03f,0.005f},GUI_PRIMARY_COLOR);
+	drawRect(VEC2addVEC2R(GUI_PRIMARY,(VEC2){0.075f*RD_CMP,0.0f}),(VEC2){0.003f,0.05f},GUI_PRIMARY_COLOR);
+	drawRect(VEC2addVEC2R(GUI_PRIMARY,(VEC2){-0.075f*RD_CMP,0.0f}),(VEC2){0.003f,0.05f},GUI_PRIMARY_COLOR);
+
+	drawRect(VEC2addVEC2R(GUI_SECUNDARY,(VEC2){0.0f,0.075f}),(VEC2){0.03f,0.005f},GUI_SECUNDARY_COLOR);
+	drawRect(VEC2addVEC2R(GUI_SECUNDARY,(VEC2){0.0f,-0.075f}),(VEC2){0.03f,0.005f},GUI_SECUNDARY_COLOR);
+	drawRect(VEC2addVEC2R(GUI_SECUNDARY,(VEC2){0.075f*RD_CMP,0.0f}),(VEC2){0.003f,0.05f},GUI_SECUNDARY_COLOR);
+	drawRect(VEC2addVEC2R(GUI_SECUNDARY,(VEC2){-0.075f*RD_CMP,0.0f}),(VEC2){0.003f,0.05f},GUI_SECUNDARY_COLOR);
 
 	f4 energy = (f4)player.energy/5.0f/ENERGY_MAX;
 	drawRect((VEC2){GUI_ENERGY.x+0.16f+energy,GUI_ENERGY.y},(VEC2){energy,0.04f},LOOT_ENERGY_COLOR);
@@ -87,9 +96,26 @@ void GUIdrawInventorySlots(){
 void cursorDraw(VEC2 cursor){
 	glUseProgram(sprite_shader);
  	drawSprite(cursor,RD_GUI(2.5f),TEXTURE16_RENDER(SPRITE_CROSSHAIR));
-	if(inventory.cursor.item){
-		drawSprite(cursor,RD_GUI(8.0f),texture16Render(inventory.cursor.item+ITEM_SPRITE_OFFSET));
+	if(inventory.cursor.item.type){
+		drawSprite(cursor,RD_GUI(8.0f),texture16Render(inventory.cursor.item.type+ITEM_SPRITE_OFFSET));
 	}
+}
+
+u1 cursorInGui(f4 cursor_x){
+	return cursor_x > GUI_BEGIN_X ? TRUE : FALSE;
+}
+
+void GUIcraftFrame(){
+	GUIframe(VEC2_ZERO,GUI_MENU_CRAFT_SIZE);
+	drawRect(VEC2_ZERO,GUI_MENU_CRAFT_SIZE,VEC3_ZERO);
+	GUIframe(GUI_CRAFT1,GUI_BIGBUTTON_SIZE);
+	GUIframe(GUI_CRAFT2,GUI_BIGBUTTON_SIZE);
+	GUIframe(GUI_CRAFT3,GUI_BIGBUTTON_SIZE);
+	GUIframe(GUI_CRAFT4,GUI_BIGBUTTON_SIZE);
+	GUIcraftingRecipe(GUI_CRAFT1);
+	GUIcraftingRecipe(GUI_CRAFT2);
+	GUIcraftingRecipe(GUI_CRAFT3);
+	GUIcraftingRecipe(GUI_CRAFT4);
 }
 
 void GUIdraw(){
@@ -106,36 +132,63 @@ void GUIdraw(){
 	sprintf(str,"%i/%i",player.scrap,SCRAP_MAX);
 	drawString((VEC2){GUI_SCRAP.x+0.18f,GUI_SCRAP.y},RD_GUI(2.5f),str);
 	VEC2 cursor = getCursorPosGUI();
+#define GUI_DEBUG_SIZE (VEC2){0.5f,0.1f}
 	switch(menu_select){
+	case MENU_DEBUG:
+		glUseProgram(color_shader);
+		GUIframe(VEC2_ZERO,GUI_DEBUG_SIZE);
+		drawRect(VEC2_ZERO,GUI_DEBUG_SIZE,VEC3_ZERO);
+		drawRect((VEC2){-GUI_DEBUG_SIZE.x+0.03f+0.02f*console_input.cnt,-0.065f},(VEC2){0.008f,0.0075f},(VEC3){1.0f,1.0f,1.0f});
+		glUseProgram(font_shader);
+		drawString((VEC2){-GUI_DEBUG_SIZE.x+0.03f,0.05f},RD_GUI(2.5f),"debug console");
+		drawString((VEC2){-GUI_DEBUG_SIZE.x+0.03f,-0.05f},RD_GUI(2.5f),console_input.data);
+		break;
+	case MENU_CRAFTING_BLOCK:
+		glUseProgram(color_shader);
+		GUIcraftFrame();
+		glUseProgram(entity_dark_shader);
+		GUIcraftingRecipeItem(GUI_CRAFT1,ITEM_STONEDUST,ITEM_STONEDUST,ITEM_STONEDUST,ITEM_STONEDUST);
+		glUseProgram(font_shader);
+		drawString((VEC2){GUI_CRAFT1.x-0.12f,GUI_CRAFT1.y},RD_GUI(2.5f),"stonewall");
+		cursorDraw(cursor);
+		break;
+	case MENU_CRAFTING_BUILDING:
+		glUseProgram(color_shader);
+		GUIcraftFrame();
+		glUseProgram(entity_dark_shader);
+		GUIcraftingRecipeItem(GUI_CRAFT1,ITEM_STONEDUST,ITEM_STONEDUST,ITEM_STONEDUST,ITEM_STONEDUST);
+		GUIcraftingRecipeItem(GUI_CRAFT2,ITEM_LOG,ITEM_LOG,ITEM_LOG,ITEM_LOG);
+		glUseProgram(font_shader);
+		drawString((VEC2){GUI_CRAFT1.x-0.12f,GUI_CRAFT1.y},RD_GUI(2.5f),"weapon-station");
+		drawString((VEC2){GUI_CRAFT2.x-0.12f,GUI_CRAFT2.y},RD_GUI(2.5f),"block-station");
+		cursorDraw(cursor);
+		break;
 	case MENU_GAME:
+		for(u4 i = 0;i < entity_block.cnt;i++){
+			if(map.type[coordToMap(entity_block.state[i].pos.x,entity_block.state[i].pos.y)]==BLOCK_BUILDING_ENTITY){
+				VEC2 b_pos = (VEC2){(f4)entity_block.state[i].pos.x+0.5f,(f4)entity_block.state[i].pos.y+0.5f};
+				if(VEC2distance(player.pos,b_pos)<5.0f){
+					drawString(mapCrdToRenderCrd(b_pos),RD_GUI(2.5f),"E");
+				}
+			}
+		}
 		cursorDraw(cursor);
 		break;
 	case MENU_CONSTRUCT:
-		if(cursor.x > GUI_BEGIN_X){
-			cursorDraw(cursor);
-		}
+		if(cursorInGui(cursor.x)) cursorDraw(cursor);
 		else{
 			cursor = VEC2addVEC2R(getCursorPosMap(),player.pos);
 			VEC2sub(&cursor,camera.zoom/2.0f);
 			cursor.x = (u4)cursor.x;
 			cursor.y = (u4)cursor.y;
 			glUseProgram(color_shader);
-			GUIframe(mapCrdToRenderCrd(cursor),RD_SQUARE(2.0f));
+			GUIframe(mapCrdToRenderCrd(cursor),RD_SQUARE(construction.size));
 			glUseProgram(sprite_shader);
 		}
 		break;
-	case MENU_CRAFTING:
+	case MENU_CRAFTING_SIMPLE:
 		glUseProgram(color_shader);
-		GUIframe(VEC2_ZERO,GUI_MENU_CRAFT_SIZE);
-		drawRect(VEC2_ZERO,GUI_MENU_CRAFT_SIZE,VEC3_ZERO);
-		GUIframe(GUI_CRAFT1,GUI_BIGBUTTON_SIZE);
-		GUIframe(GUI_CRAFT2,GUI_BIGBUTTON_SIZE);
-		GUIframe(GUI_CRAFT3,GUI_BIGBUTTON_SIZE);
-		GUIframe(GUI_CRAFT4,GUI_BIGBUTTON_SIZE);
-		GUIcraftingRecipe(GUI_CRAFT1);
-		GUIcraftingRecipe(GUI_CRAFT2);
-		GUIcraftingRecipe(GUI_CRAFT3);
-		GUIcraftingRecipe(GUI_CRAFT4);
+		GUIcraftFrame();
 		glUseProgram(entity_dark_shader);
 		GUIcraftingRecipeItem(GUI_CRAFT1,ITEM_STONEDUST,ITEM_STONEDUST,ITEM_STONEDUST,ITEM_STONEDUST);
 		GUIcraftingRecipeItem(GUI_CRAFT2,ITEM_LOG,ITEM_LOG,ITEM_LOG,ITEM_LOG);

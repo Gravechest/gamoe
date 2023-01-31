@@ -49,6 +49,7 @@ u4 loadShader(u1* fragment,u1* vertex){
 	glAttachShader(shaderProgram,vertexShader);
 	glAttachShader(shaderProgram,fragmentShader);
 	glLinkProgram(shaderProgram);
+
 	HeapFree(GetProcessHeap(),0,fragmentSource);
 	HeapFree(GetProcessHeap(),0,vertexSource);
 	return shaderProgram;
@@ -58,6 +59,7 @@ void openglInit(){
 	glCreateProgram		      = wglGetProcAddress("glCreateProgram");
 	glCreateShader		      = wglGetProcAddress("glCreateShader");
 	glShaderSource		      = wglGetProcAddress("glShaderSource");
+	glGetShaderInfoLog        = wglGetProcAddress("glGetShaderInfoLog");
 	glCompileShader		      = wglGetProcAddress("glCompileShader");
 	glAttachShader		      = wglGetProcAddress("glAttachShader");
 	glLinkProgram		      = wglGetProcAddress("glLinkProgram");
@@ -119,7 +121,7 @@ void openglInit(){
 	glBindTexture(GL_TEXTURE_2D,map_texture);
 	glUseProgram(map_shader);
 	glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_NEAREST);
-	glTexImage2D(GL_TEXTURE_2D,0,GL_RG8,SIM_SIZE,SIM_SIZE,0,GL_RG,GL_UNSIGNED_BYTE,map);
+	glTexImage2D(GL_TEXTURE_2D,0,GL_R8,SIM_SIZE,SIM_SIZE,0,GL_RED,GL_UNSIGNED_BYTE,map.type);
 	glGenerateMipmap(GL_TEXTURE_2D);
 	glUniform1i(glGetUniformLocation(map_shader,"map"),1);
 
@@ -147,6 +149,25 @@ void openglInit(){
 	glVertexAttribPointer(1,2,GL_FLOAT,0,4 * sizeof(float),(void*)(2 * sizeof(float)));
 }
 
+void drawItem(VEC2 i_pos,SLOT item){
+	if(!item.visible) return;
+	if(!item.type)    return;
+	f4 durability = item.durability/256.0f;
+	f4 durability_r = 1.0f-item.durability/256.0f;
+	VEC2 pos = i_pos;
+	VEC2 pos2 = i_pos;
+	VEC2 size = RD_GUI(GUI_ITEM_SIZE);
+	VEC2 size2 = size;
+	pos.y -= size.y*durability_r;
+	pos2.y += size.y*durability;
+	size.y *= durability;
+	size2.y *= durability_r;
+	VEC2 t_pos = texture16Render(item.type+ITEM_SPRITE_OFFSET);
+	drawItemPiece(pos,size,t_pos,(VEC2){TEXTURE16_RD_SIZE,TEXTURE16_RD_SIZE*durability},(VEC3){1.0f,1.0f,1.0f});
+	t_pos.y += TEXTURE16_RD_SIZE*durability;
+	drawItemPiece(pos2,size2,t_pos,(VEC2){TEXTURE16_RD_SIZE,TEXTURE16_RD_SIZE*durability_r},(VEC3){0.5f,0.5f,0.5f});
+}
+
 void opengl(){
 	camera = camera_new;
 	if(player.pos.x - camera.zoom/2.0f - CAM_AREA > camera.pos.x){
@@ -154,7 +175,7 @@ void opengl(){
 		if(player.pos.x > CHUNK_SIZE*2){ 
 			worldLoadEast();
 			glActiveTexture(GL_TEXTURE1);
-			glTexSubImage2D(GL_TEXTURE_2D,0,0,0,SIM_SIZE,SIM_SIZE,GL_RG,GL_UNSIGNED_BYTE,map);
+			glTexSubImage2D(GL_TEXTURE_2D,0,0,0,SIM_SIZE,SIM_SIZE,GL_R,GL_UNSIGNED_BYTE,map.type);
 			glActiveTexture(GL_TEXTURE4);
 			glTexSubImage2D(GL_TEXTURE_2D,0,0,0,SIM_SIZE*TILE_TEXTURE_SIZE,SIM_SIZE*TILE_TEXTURE_SIZE,GL_RGB,GL_UNSIGNED_BYTE,tile_texture_data);
 		}
@@ -164,7 +185,7 @@ void opengl(){
 		if(player.pos.y > CHUNK_SIZE*2){
 			worldLoadNorth();
 			glActiveTexture(GL_TEXTURE1);
-			glTexSubImage2D(GL_TEXTURE_2D,0,0,0,SIM_SIZE,SIM_SIZE,GL_RG,GL_UNSIGNED_BYTE,map);
+			glTexSubImage2D(GL_TEXTURE_2D,0,0,0,SIM_SIZE,SIM_SIZE,GL_R,GL_UNSIGNED_BYTE,map.type);
 			glActiveTexture(GL_TEXTURE4);
 			glTexSubImage2D(GL_TEXTURE_2D,0,0,0,SIM_SIZE*TILE_TEXTURE_SIZE,SIM_SIZE*TILE_TEXTURE_SIZE,GL_RGB,GL_UNSIGNED_BYTE,tile_texture_data);
 		}
@@ -174,7 +195,7 @@ void opengl(){
 		if(player.pos.x < CHUNK_SIZE){
 			worldLoadWest();
 			glActiveTexture(GL_TEXTURE1);
-			glTexSubImage2D(GL_TEXTURE_2D,0,0,0,SIM_SIZE,SIM_SIZE,GL_RG,GL_UNSIGNED_BYTE,map);
+			glTexSubImage2D(GL_TEXTURE_2D,0,0,0,SIM_SIZE,SIM_SIZE,GL_R,GL_UNSIGNED_BYTE,map.type);
 			glActiveTexture(GL_TEXTURE4);
 			glTexSubImage2D(GL_TEXTURE_2D,0,0,0,SIM_SIZE*TILE_TEXTURE_SIZE,SIM_SIZE*TILE_TEXTURE_SIZE,GL_RGB,GL_UNSIGNED_BYTE,tile_texture_data);
 		}
@@ -184,7 +205,7 @@ void opengl(){
 		if(player.pos.y < CHUNK_SIZE){
 			worldLoadSouth();
 			glActiveTexture(GL_TEXTURE1);
-			glTexSubImage2D(GL_TEXTURE_2D,0,0,0,SIM_SIZE,SIM_SIZE,GL_RG,GL_UNSIGNED_BYTE,map);
+			glTexSubImage2D(GL_TEXTURE_2D,0,0,0,SIM_SIZE,SIM_SIZE,GL_R,GL_UNSIGNED_BYTE,map.type);
 			glActiveTexture(GL_TEXTURE4);
 			glTexSubImage2D(GL_TEXTURE_2D,0,0,0,SIM_SIZE*TILE_TEXTURE_SIZE,SIM_SIZE*TILE_TEXTURE_SIZE,GL_RGB,GL_UNSIGNED_BYTE,tile_texture_data);
 		}
@@ -212,7 +233,7 @@ void opengl(){
 		case GLMESSAGE_SINGLE_MAPEDIT:{
 			glActiveTexture(GL_TEXTURE1);
 			IVEC2 p = gl_queue.message[gl_queue.cnt].pos;
-			glTexSubImage2D(GL_TEXTURE_2D,0,p.x,p.y,1,1,GL_RG,GL_UNSIGNED_BYTE,map+p.x*SIM_SIZE+p.y);
+			glTexSubImage2D(GL_TEXTURE_2D,0,p.x,p.y,1,1,GL_RED,GL_UNSIGNED_BYTE,map.type+p.x*SIM_SIZE+p.y);
 			break;
 		}
 		case GLMESSAGE_WND_SIZECHANGE:
@@ -220,7 +241,7 @@ void opengl(){
 			break;
 		case GLMESSAGE_WHOLE_MAPEDIT:
 			glActiveTexture(GL_TEXTURE1);
-			glTexSubImage2D(GL_TEXTURE_2D,0,0,0,SIM_SIZE,SIM_SIZE,GL_RG,GL_UNSIGNED_BYTE,map);
+			glTexSubImage2D(GL_TEXTURE_2D,0,0,0,SIM_SIZE,SIM_SIZE,GL_RED,GL_UNSIGNED_BYTE,map.type);
 			break;
 		}
 	}
@@ -251,21 +272,21 @@ void opengl(){
 			case ITEM_NOTHING:{
 				VEC2 offset = VEC2rotR(pos_dst,PI*0.5f);
 				VEC2div(&offset,2.4f);
-				VEC2mul(&pos_dst,sinf((f4)player.melee_progress/PLAYER_FIST_COOLDOWN*PI)*1.8f);
+				VEC2mul(&pos_dst,sinf((f4)player.melee_progress/PLAYER_FIST_ATTACKDURATION*PI)*1.8f);
 				if(player.fist_side){
-					VEC2addVEC2(&pos_dst,offset);
-					VEC2addVEC2(&pos_src,offset);
-				}
-				else{
 					VEC2subVEC2(&pos_dst,offset);
 					VEC2subVEC2(&pos_src,offset);
+				}
+				else{
+					VEC2addVEC2(&pos_dst,offset);
+					VEC2addVEC2(&pos_src,offset);
 				}
 				VEC2addVEC2(&pos_dst,player.pos);
 				drawLine(mapCrdToRenderCrd(pos_src),mapCrdToRenderCrd(pos_dst),(VEC3){0.7f,0.1f,0.1f},RD_MAP_CONVERT(0.2f));
 				break;
 			}
 			case ITEM_MELEE:
-				VEC2mul(&pos_dst,cosf((f4)player.melee_progress/PLAYER_MELEE_COOLDOWN*PI+PI*0.5f)*3.0f);
+				VEC2mul(&pos_dst,cosf((f4)player.melee_progress/PLAYER_MELEE_ATTACKDURATION*PI+PI*0.5f)*3.0f);
 				VEC2addVEC2(&pos_dst,player.pos);
 				drawLine(mapCrdToRenderCrd(pos_src),mapCrdToRenderCrd(pos_dst),(VEC3){0.7f,0.1f,0.1f},RD_MAP_CONVERT(1.0f));
 				break;
@@ -291,27 +312,24 @@ void opengl(){
 
 	glUseProgram(sprite_shader);
 	if(player.health) drawSprite(mapCrdToRenderCrd(player.pos),RD_SQUARE(PLAYER_SIZE),TEXTURE16_RENDER(SPRITE_PLAYER));
+	glUseProgram(entity_dark_shader);
 	for(u4 i = 0;i < 9;i++){
 		VEC2 draw_pos = VEC2addVEC2R(VEC2mulVEC2R((VEC2){i/3,i%3},GUI_INVENTORY_SLOT_OFFSET),GUI_INVENTORY);
-		if(inventory.item[i].type && inventory.item[i].visible){
-			drawSprite(draw_pos,RD_GUI(GUI_ITEM_SIZE),texture16Render(inventory.item[i].type+ITEM_SPRITE_OFFSET));
-		}
+		drawItem(draw_pos,inventory.item[i]);
 	}
-	if(inventory.item_primary.type && inventory.item_primary.visible){
-		drawSprite(GUI_EQUIPED,RD_GUI(GUI_ITEM_SIZE),texture16Render(inventory.item_primary.type+ITEM_SPRITE_OFFSET));
-	}
-	glUseProgram(entity_dark_shader);
+	drawItem(GUI_PRIMARY,inventory.item_primary);
+	drawItem(GUI_SECUNDARY,inventory.item_secundary);
 	for(u4 i = 0;i < entity_item.cnt;i++){
 		VEC3mul(&entity_item.state[i].luminance,0.008f);
 		VEC2 draw_pos = mapCrdToRenderCrd(entity_item.state[i].pos);
 		VEC2 draw_size = RD_SQUARE(entity_item.state[i].size);
 		switch(entity_item.state[i].type){
 		case ENTITY_BLOCK_PARTICLE:
-			drawEnemy(draw_pos,draw_size,TEXTURE16_RENDER(SPRITE_BLOCK_PARTICLE),entity_item.state[i].luminance);
+			drawEnemy(draw_pos,draw_size,TEXTURE16_RENDER(SPRITE_PLAYER),entity_item.state[i].luminance);
 			break;
 		case ENTITY_ITEM:
 			VEC3add(&entity_item.state[i].luminance,(f4)entity_item.state[i].pickup_countdown/50.0f);
-			drawEnemy(draw_pos,draw_size,texture16Render(ITEM_SPRITE_OFFSET+entity_item.state[i].item_type),entity_item.state[i].luminance);
+			drawEnemy(draw_pos,draw_size,texture16Render(ITEM_SPRITE_OFFSET+entity_item.state[i].item.type),entity_item.state[i].luminance);
 			break;
 		}
 		entity_item.state[i].luminance = VEC3_ZERO;
@@ -337,7 +355,7 @@ void opengl(){
 	GUIdraw();
 
 	for(u4 i = 0;i < entity_togui.cnt;i++){
-		drawSprite(entity_togui.state[i].pos,RD_GUI(entity_togui.state[i].size),texture16Render(entity_togui.state[i].type+ITEM_SPRITE_OFFSET));
+		drawSprite(entity_togui.state[i].pos,RD_GUI(entity_togui.state[i].size),texture16Render(entity_togui.state[i].item.type+ITEM_SPRITE_OFFSET));
 	}
 
 	memset(vramf,0,sizeof(VEC3)*camera.zoom*camera.zoom);

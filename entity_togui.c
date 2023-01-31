@@ -6,13 +6,13 @@
 
 ENTITYTOGUIHUB entity_togui;
 
-void entityToGuiSpawn(VEC2 pos,VEC2 dst,f4 size,u4 slot,u4 type){
-	inventory.item_all[slot].type = type;
+void entityToGuiSpawn(VEC2 pos,VEC2 dst,f4 size,u4 slot,ITEM type){
+	inventory.item_all[slot].item = type;
 	inventory.item_all[slot].visible = FALSE;
 	entity_togui.state[entity_togui.cnt].pos = pos;
 	entity_togui.state[entity_togui.cnt].size = size;
 	entity_togui.state[entity_togui.cnt].dst = dst;
-	entity_togui.state[entity_togui.cnt].type = type;
+	entity_togui.state[entity_togui.cnt].item = type;
 	entity_togui.state[entity_togui.cnt].inventory_slot = slot;
 	entity_togui.state[entity_togui.cnt++].vel = VEC2_ZERO;
 }
@@ -27,7 +27,7 @@ void entityToGuiTick(){
 		VEC2div(&entity_togui.state[i].size,11.0f);
 		if(VEC2distance(entity_togui.state[i].dst,entity_togui.state[i].pos) < 0.02f){
 			inventory.item_all[entity_togui.state[i].inventory_slot].visible = TRUE;
-			inventory.item_count[entity_togui.state[i].type]++;
+			inventory.item_count[entity_togui.state[i].item.type]++;
 			ENTITY_REMOVE(entity_togui,i);
 		}
 	}

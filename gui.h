@@ -5,12 +5,14 @@
 
 #define GUI_BEGIN_X 0.125f
 
-#define GUI_EQUIPED_COLOR (VEC3){0.6f,0.2f,0.2f}
+#define GUI_SECUNDARY_COLOR (VEC3){0.6f,0.6f,0.2f}
+#define GUI_PRIMARY_COLOR (VEC3){0.6f,0.2f,0.2f}
 
 #define GUI_ENERGY (VEC2){0.18f,0.9f}
 #define GUI_HEALTH (VEC2){0.18f,0.8f}
 #define GUI_SCRAP  (VEC2){0.18f,0.7f}
-#define GUI_EQUIPED (VEC2){GUI_INVENTORY.x,GUI_INVENTORY.y-0.3f}
+#define GUI_PRIMARY (VEC2){GUI_INVENTORY.x,GUI_INVENTORY.y-0.3f}
+#define GUI_SECUNDARY (VEC2){GUI_INVENTORY.x+GUI_INVENTORY_SLOT_OFFSET.x,GUI_INVENTORY.y-0.3f}
 #define GUI_INVENTORY (VEC2){0.24f,-0.55f}
 #define GUI_BUTTON_SIZE (VEC2){0.1f,0.04f}
 #define GUI_BIGBUTTON_SIZE (VEC2){0.2f,0.04f}
@@ -30,6 +32,15 @@
 
 #define GUI_ITEM_SIZE 8.0f
 #define GUI_INVENTORY_SLOT_OFFSET RD_GUI(32.0f)
+
+#define CONSOLE_INPUT_SIZE 40
+
+typedef struct{
+	u4  cnt;
+	u1* data;
+}STRING;
+
+extern STRING console_input;
 
 void GUIdraw();
 void GUIdrawInventorySlots();

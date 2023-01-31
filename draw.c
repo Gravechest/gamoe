@@ -63,6 +63,24 @@ void drawString(VEC2 pos,VEC2 size,u1* string){
 	}
 }
 
+void drawItemPiece(VEC2 pos,VEC2 size,VEC2 texture_pos,VEC2 texture_size,VEC3 luminance){
+	sprite_quad.p1 = (VEC2){pos.x-size.x,pos.y-size.y};
+	sprite_quad.p2 = (VEC2){pos.x-size.x,pos.y+size.y};
+	sprite_quad.p3 = (VEC2){pos.x+size.x,pos.y-size.y};
+	sprite_quad.p4 = (VEC2){pos.x+size.x,pos.y+size.y};
+	sprite_quad.p5 = (VEC2){pos.x-size.x,pos.y+size.y};
+	sprite_quad.p6 = (VEC2){pos.x+size.x,pos.y-size.y};
+	sprite_quad.tc1 = (VEC2){texture_pos.x                  ,texture_pos.y               };
+	sprite_quad.tc2 = (VEC2){texture_pos.x                  ,texture_pos.y+texture_size.y};
+	sprite_quad.tc3 = (VEC2){texture_pos.x+texture_size.x,texture_pos.y                  };
+	sprite_quad.tc4 = (VEC2){texture_pos.x+texture_size.x,texture_pos.y+texture_size.y};
+	sprite_quad.tc5 = (VEC2){texture_pos.x                  ,texture_pos.y+texture_size.y};
+	sprite_quad.tc6 = (VEC2){texture_pos.x+texture_size.x,texture_pos.y                  };
+	glUniform3f(glGetUniformLocation(entity_dark_shader,"luminance"),luminance.r,luminance.g,luminance.b);
+	glBufferData(GL_ARRAY_BUFFER,24 * sizeof(float),&sprite_quad,GL_DYNAMIC_DRAW);
+	glDrawArrays(GL_TRIANGLES,0,24);
+}
+
 void drawEnemy(VEC2 pos,VEC2 size,VEC2 texture_pos,VEC3 luminance){
 	if(luminance.r == 0.0f && luminance.g == 0.0f && luminance.b == 0.0f) return;
 	sprite_quad.p1 = (VEC2){pos.x-size.x,pos.y-size.y};

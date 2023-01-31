@@ -18,12 +18,20 @@ void blockParticleSpawn(VEC2 pos,VEC2 vel){
 	entity_item.state[entity_item.cnt++].size = ENTITY_BLOCK_PARTICLE_SIZE;
 }
 
-void itemEntitySpawn(VEC2 pos,VEC2 vel,u4 item){
+void itemEntitySpawnNew(VEC2 pos,VEC2 vel,u4 item_type){
 	entity_item.state[entity_item.cnt].size = ENTITY_ITEM_SIZE;
 	entity_item.state[entity_item.cnt].pos = pos;
 	entity_item.state[entity_item.cnt].pickup_countdown = 30;
 	entity_item.state[entity_item.cnt].vel = vel;
-	entity_item.state[entity_item.cnt++].item_type = item;
+	entity_item.state[entity_item.cnt++].item = (ITEM){item_type,0xff};
+}
+
+void itemEntitySpawn(VEC2 pos,VEC2 vel,ITEM item){
+	entity_item.state[entity_item.cnt].size = ENTITY_ITEM_SIZE;
+	entity_item.state[entity_item.cnt].pos = pos;
+	entity_item.state[entity_item.cnt].pickup_countdown = 30;
+	entity_item.state[entity_item.cnt].vel = vel;
+	entity_item.state[entity_item.cnt++].item = item;
 }
 
 void entityItemTick(){
@@ -46,7 +54,7 @@ void entityItemTick(){
 					i4 slot = inventoryEmptySlot();
 					if(slot!=-1){
 						VEC2 egui_pos = mapCrdToRenderCrd(entity_item.state[i].pos);
-						entityToGuiSpawn(egui_pos,getInventoryPos(slot),ENTITY_ITEM_SIZE,slot+INVENTORY_INVENTORY,entity_item.state[i].item_type);
+						entityToGuiSpawn(egui_pos,getInventoryPos(slot),ENTITY_ITEM_SIZE,slot,entity_item.state[i].item);
 						ENTITY_REMOVE(entity_item,i);
 						continue;
 					}

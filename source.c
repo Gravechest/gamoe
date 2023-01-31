@@ -16,6 +16,7 @@
 #include "inventory.h"
 #include "gui.h"
 #include "construction.h"
+#include "entity_block.h"
 
 i4 proc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
 
@@ -34,14 +35,13 @@ IVEC2 client_resolution;
 
 VEC3* vramf;
 RGB*  vram;
-MAP* map;
+MAP map;
 
 CAMERA camera = {CHUNK_SIZE,CHUNK_SIZE,CHUNK_SIZE};
 CAMERA camera_new = {CHUNK_SIZE,CHUNK_SIZE,CHUNK_SIZE};
 PLAYER player = {.pos = PLAYER_SPAWN,.energy = ENERGY_MAX,.health = HEALTH_MAX};
 
 LASERHUB  laser;
-BLOCKENTITYHUB entity_block;
 RGB* texture16;
 RGB* building_texture;
 KEYS key_pressed;
@@ -101,15 +101,15 @@ VEC2 entityPull(VEC2 entity,VEC2 destination,f4 power){
 	return VEC2mulR(to_destination,power/(distance*distance));
 }
 
-u1 lineOfSight(VEC2 pos,VEC2 dir,u4 iterations){
-	RAY2D ray = ray2dCreate(pos,dir);
-	for(u4 i = 0;i < iterations;i++){
-		if(map[coordToMap(ray.square_pos.x,ray.square_pos.y)].type==BLOCK_NORMAL) return FALSE;
+u1 lineOfSight(VEC2 pos_1,VEC2 pos_2){
+	VEC2 dir = VEC2subVEC2R(pos_2,pos_1);
+	RAY2D ray = ray2dCreate(pos_1,dir);
+	while(ray.square_pos.x != (u4)pos_2.x && ray.square_pos.y != (u4)pos_2.y){
+		if(map.type[coordToMap(ray.square_pos.x,ray.square_pos.y)]==BLOCK_NORMAL) return FALSE;
 		ray2dIterate(&ray);
 	}
 	return TRUE;
 }
-
 
 void collision(VEC2* pos,VEC2 vel,f4 size){
 	f4 inc = size;
@@ -117,7 +117,9 @@ void collision(VEC2* pos,VEC2 vel,f4 size){
 	while(inc > 1.0f) inc *= 0.5f;
 	offset = vel.x < 0.0f ? -size : size;
 	for(f4 i = pos->y - size;i <= pos->y + size;i+=inc){
-		if(map[coordToMap(pos->x+offset,i)].type == BLOCK_NORMAL){
+		switch(map.type[coordToMap(pos->x+offset,i)]){
+		case BLOCK_AIR: break;
+		default:
 			pos->x -= vel.x;
 			vel.x = 0.0f;
 			break;
@@ -125,7 +127,9 @@ void collision(VEC2* pos,VEC2 vel,f4 size){
 	}
 	offset = vel.y < 0.0f ? -size : size;
 	for(f4 i = pos->x - size;i <= pos->x + size;i+=inc){
-		if(map[coordToMap(i,pos->y+offset)].type == BLOCK_NORMAL){
+		switch(map.type[coordToMap(i,pos->y+offset)]){
+		case BLOCK_AIR: break;
+		default:
 			pos->y -= vel.y;
 			vel.y = 0.0f;
 			break;
@@ -149,19 +153,59 @@ u1 pointAABBcollision(VEC2 point,VEC2 aabb,VEC2 size){
 	return FALSE;
 }
 
-void tileConstruct(IVEC2 map_crd,u4 t_text_loc){
+void tileConstruct(IVEC2 map_crd,u4 building){
 	u4 t_map_loc = coordToMap(map_crd.x,map_crd.y);
+	if(map.type[t_map_loc] != BLOCK_AIR || map.type[t_map_loc+1] != BLOCK_AIR ||
+	map.type[t_map_loc+SIM_SIZE] != BLOCK_AIR || map.type[t_map_loc+SIM_SIZE+1] != BLOCK_AIR) return;
+
 	u4 t_tile_loc = coordToTileTexture(map_crd.y,map_crd.x);
-	map[t_map_loc].type = BLOCK_BUILDING;
-	map[t_map_loc+1].type = BLOCK_BUILDING;
-	map[t_map_loc+SIM_SIZE].type = BLOCK_BUILDING;
-	map[t_map_loc+SIM_SIZE+1].type = BLOCK_BUILDING;
+	map.type[t_map_loc] = BLOCK_BUILDING_ENTITY;
+	map.type[t_map_loc+1] = BLOCK_BUILDING;
+	map.type[t_map_loc+SIM_SIZE] = BLOCK_BUILDING;
+	map.type[t_map_loc+SIM_SIZE+1] = BLOCK_BUILDING;
+	map.data[t_map_loc].sub_type = building;
+	map.data[t_map_loc+1].sub_type = building;
+	map.data[t_map_loc+SIM_SIZE].sub_type = building;
+	map.data[t_map_loc+SIM_SIZE+1].sub_type = building;
+	u4 building_offset = building*8;
 	for(u4 x = 0;x < 8;x++){
 		for(u4 y = 0;y < 8;y++){
-			tile_texture_data[x*SIM_SIZE*TILE_TEXTURE_SIZE+y+t_tile_loc] = building_texture[t_text_loc+x*TILE_TEXTURE_SIZE*BUILDING_TEXURE_ROWCOUNT+y];
+			tile_texture_data[x*SIM_SIZE*TILE_TEXTURE_SIZE+y+t_tile_loc] = building_texture[building_offset+x*TILE_TEXTURE_SIZE*BUILDING_TEXURE_ROWCOUNT+y];
 		}
 	}
 	gl_queue.message[gl_queue.cnt++].id = GLMESSAGE_WHOLE_TILEEDIT;
+
+	switch(construction.type){
+	case CONSTRUCTION_BLOCKSTATION:
+		inventoryRemove(ITEM_STONEDUST);
+		inventoryRemove(ITEM_STONEDUST);
+		inventoryRemove(ITEM_STONEDUST);
+		inventoryRemove(ITEM_STONEDUST);
+		break;
+	case CONSTRUCTION_CRAFTINGSTATION:
+		inventoryRemove(ITEM_STONEDUST);
+		inventoryRemove(ITEM_STONEDUST);
+		inventoryRemove(ITEM_STONEDUST);
+		inventoryRemove(ITEM_STONEDUST);
+		break;
+	}
+	entity_block.state[entity_block.cnt++].pos = map_crd;
+	menu_select = MENU_GAME;
+}
+
+void constructStonewall(IVEC2 map_crd){
+	u4 t_map_loc = coordToMap(map_crd.x,map_crd.y);
+	map.type[t_map_loc] = BLOCK_NORMAL;
+	map.data[t_map_loc].health = 0xff;
+	gl_queue.message[gl_queue.cnt].pos = (IVEC2){map_crd.x,map_crd.y};
+	gl_queue.message[gl_queue.cnt++].id = GLMESSAGE_SINGLE_MAPEDIT;
+}
+
+u1 craftButton_4v1(VEC2 pos,VEC2 button_pos,u4 item){
+	if(pointAABBcollision(pos,button_pos,GUI_BIGBUTTON_SIZE) && inventory.item_count[item]>3){
+		return TRUE;
+	}
+	return FALSE;
 }
 
 i4 proc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam){
@@ -172,11 +216,57 @@ i4 proc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam){
 		gl_queue.message[gl_queue.cnt++].id = GLMESSAGE_WND_SIZECHANGE;
 		break;
 	case WM_KEYDOWN:
+		switch(menu_select){
+		case MENU_DEBUG:
+			if((wParam >= '0' && wParam <= '9') || (wParam >= 'A' && wParam <= 'Z') && console_input.cnt < CONSOLE_INPUT_SIZE){
+				console_input.data[console_input.cnt++] = wParam;
+			}
+			switch(wParam){
+			case VK_RETURN:
+				if(!memcmp("GIVE",console_input.data,4)){
+					if(!memcmp("TORCH",console_input.data+5,5)) inventoryAdd(ITEM_TORCH);
+					if(!memcmp("LOG"  ,console_input.data+5,3)) inventoryAdd(ITEM_LOG);
+					if(!memcmp("STONEDUST",console_input.data+5,9)) inventoryAdd(ITEM_STONEDUST);
+					if(!memcmp("BOMB",console_input.data+5,4)) inventoryAdd(ITEM_BOMB);
+					if(!memcmp("PICKAXE",console_input.data+5,7)) inventoryAdd(ITEM_PICKAXE);
+					if(!memcmp("MELEE",console_input.data+5,5)) inventoryAdd(ITEM_MELEE);
+				}
+				break;
+			case VK_SPACE:
+				console_input.data[console_input.cnt++] = '~'+1;
+				break;
+			case VK_BACK:
+				if(console_input.cnt) console_input.data[--console_input.cnt] = '\0';
+				break;
+			}
+			break;
+		}
 		switch(wParam){
+		case VK_OEM_3:
+			menu_select = MENU_DEBUG;
+			break;
+		case VK_E:
+			for(u4 i = 0;i < entity_block.cnt;i++){
+				u4 m_loc = coordToMap(entity_block.state[i].pos.x,entity_block.state[i].pos.y);
+				if(map.type[m_loc]==BLOCK_BUILDING_ENTITY){
+					VEC2 b_pos = (VEC2){(f4)entity_block.state[i].pos.x+0.5f,(f4)entity_block.state[i].pos.y+0.5f};
+					if(VEC2distance(b_pos,player.pos) < 5.0f){
+						switch(map.data[m_loc].sub_type){
+						case CONSTRUCTION_BLOCKSTATION:
+							menu_select = MENU_CRAFTING_BLOCK;
+							break;
+						case CONSTRUCTION_CRAFTINGSTATION:
+							menu_select = MENU_CRAFTING_BUILDING;
+							break;
+						}
+
+					}
+				}
+			}
+			break;
 		case VK_ESCAPE:
 			switch(menu_select){
-			case MENU_CRAFTING:
-			case MENU_SETTING:
+			default:
 				menu_select = MENU_GAME;
 				break;
 			}
@@ -188,64 +278,88 @@ i4 proc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam){
 		i4 zoom_adjust = scroll_ammount/15;
 		camera_new.zoom -= zoom_adjust;
 		if(camera_new.zoom>CHUNK_SIZE) camera_new.zoom = CHUNK_SIZE;
-		if(camera_new.zoom<8) camera_new.zoom = 8;
+		if(camera_new.zoom<8)          camera_new.zoom = 8;
 		VEC2sub(&camera_new.pos,zoom_adjust*200.0f);
 		break;
 	}
 	case WM_LBUTTONUP:
-		if(inventory.cursor.item){
+		if(inventory.cursor.item.type){
 			VEC2 cursor = getCursorPosGUI();
 			if(cursor.x < GUI_BEGIN_X){
-				itemEntitySpawn(player.pos,VEC2divR(VEC2normalizeR(playerLookDirection()),3.0f),inventory.cursor.item);
-				inventory.cursor.item = ITEM_NOTHING;
+				itemEntitySpawn(player.pos,VEC2divR(VEC2normalizeR(playerLookDirection()),3.0f),inventory.cursor.item.item);
+				inventory.cursor.item.type = ITEM_NOTHING;
 			}
-			if(pointAABBcollision(cursor,GUI_EQUIPED,RD_GUI(GUI_ITEM_SIZE))){
+			if(pointAABBcollision(cursor,GUI_PRIMARY,RD_GUI(GUI_ITEM_SIZE))){
 				if(inventory.item_primary.type) inventory.item_all[inventory.cursor.preslot] = inventory.item_primary;
-				inventory.item_primary.type = inventory.cursor.item;
-				inventory.cursor.item = ITEM_NOTHING;
+				inventory.item_primary = inventory.cursor.item;
+				inventory.cursor.item.type = ITEM_NOTHING;
+				inventory.item_primary.visible = TRUE;
+			}
+			else if(pointAABBcollision(cursor,GUI_SECUNDARY,RD_GUI(GUI_ITEM_SIZE))){
+				if(inventory.item_secundary.type) inventory.item_all[inventory.cursor.preslot] = inventory.item_secundary;
+				inventory.item_secundary = inventory.cursor.item;
+				inventory.cursor.item.type = ITEM_NOTHING;
+				inventory.item_secundary.visible = TRUE;
 			}
 			for(u4 i = 0;i < 9;i++){
 				VEC2 pos = VEC2addVEC2R(VEC2mulVEC2R((VEC2){i/3,i%3},GUI_INVENTORY_SLOT_OFFSET),GUI_INVENTORY);
 				if(pointAABBcollision(cursor,pos,RD_GUI(GUI_ITEM_SIZE))){
 					if(inventory.item[i].type) inventory.item_all[inventory.cursor.preslot] = inventory.item[i];
-					inventory.item[i].type = inventory.cursor.item;
-					inventory.cursor.item = ITEM_NOTHING;
+					inventory.item[i] = inventory.cursor.item;
+					inventory.cursor.item.type = ITEM_NOTHING;
 					inventory.item[i].visible = TRUE;
 				}
 			}
-			if(inventory.cursor.item){
+			if(inventory.cursor.item.type){
 				inventory.item_all[inventory.cursor.preslot].visible = FALSE;
-				inventory.item_all[inventory.cursor.preslot].type = inventory.cursor.item;
+				inventory.item_all[inventory.cursor.preslot] = inventory.cursor.item;
 				if(!inventory.cursor.preslot){
-					entityToGuiSpawn(cursor,GUI_EQUIPED,GUI_ITEM_SIZE,inventory.cursor.preslot,inventory.cursor.item);
+					entityToGuiSpawn(cursor,GUI_PRIMARY,GUI_ITEM_SIZE,inventory.cursor.preslot,inventory.cursor.item.item);
 				}
 				else{
-					entityToGuiSpawn(cursor,getInventoryPos(inventory.cursor.preslot-INVENTORY_INVENTORY),GUI_ITEM_SIZE,inventory.cursor.preslot,inventory.cursor.item);
+					entityToGuiSpawn(cursor,getInventoryPos(inventory.cursor.preslot),GUI_ITEM_SIZE,inventory.cursor.preslot,inventory.cursor.item.item);
 				}
-				inventory.cursor.item = ITEM_NOTHING;
+				inventory.cursor.item.type = ITEM_NOTHING;
 			}
 		}
 		break;
+	case WM_RBUTTONDOWN:{
+		VEC2 cursor = getCursorPosGUI();
+		switch(menu_select){
+		case MENU_GAME:
+			if(cursor.x < 0.125f) playerAttack(PLAYERATTACK_SECUNDARY);
+			break;
+		}
+		break;
+	}
 	case WM_LBUTTONDOWN:{
 		VEC2 cursor = getCursorPosGUI();
 		switch(menu_select){
+		case MENU_CRAFTING_BLOCK:
+			if (craftButton_4v1(cursor,GUI_CRAFT1,ITEM_STONEDUST)) Construction(CONSTRUCTION_STONEWALL,1);
+			break;
 		case MENU_CONSTRUCT:
 			cursor = VEC2addVEC2R(getCursorPosMap(),camera.pos);
 			cursor.x = (u4)cursor.x;
 			cursor.y = (u4)cursor.y;
-			tileConstruct((IVEC2){cursor.x-1,cursor.y-1},0);
-			//tileConstruct(coordToTileTexture(256,256),0);
-			break;
-		case MENU_CRAFTING:
-			if     (pointAABBcollision(cursor,GUI_CRAFT1,GUI_BUTTON_SIZE)/* && inventory.item_count[ITEM_STONEDUST]>3*/){
-				//inventoryCrafting(ITEM_STONEDUST,ITEM_STONEDUST,ITEM_STONEDUST,ITEM_STONEDUST);
-				menu_select = MENU_CONSTRUCT;
-				construction_select = CONSTRUCTION_CRAFTINGSTATION;
+			switch(construction.type){
+			case CONSTRUCTION_STONEWALL:
+				constructStonewall((IVEC2){cursor.x,cursor.y});
+				break;
+			default:
+				tileConstruct((IVEC2){cursor.x-1,cursor.y-1},construction.type);
+				break;
 			}
-			else if(pointAABBcollision(cursor,GUI_CRAFT2,GUI_BUTTON_SIZE)){
+			break;
+		case MENU_CRAFTING_BUILDING:
+			if (craftButton_4v1(cursor,GUI_CRAFT1,ITEM_STONEDUST)) Construction(CONSTRUCTION_BLOCKSTATION,2);
+			break;
+		case MENU_CRAFTING_SIMPLE:
+			if (craftButton_4v1(cursor,GUI_CRAFT1,ITEM_STONEDUST)) Construction(CONSTRUCTION_CRAFTINGSTATION,2);
+			else if(craftButton_4v1(cursor,GUI_CRAFT2,ITEM_LOG)){
 				i4 slot = inventoryEmptySlot();
 				if(slot!=-1){
-					entityToGuiSpawn(cursor,getInventoryPos(slot),RD_CONVERT(6.0f),slot+INVENTORY_INVENTORY,ITEM_TORCH);
+					entityToGuiSpawn(cursor,getInventoryPos(slot),RD_CONVERT(6.0f),slot,(ITEM){ITEM_TORCH,0xff});
 				}
 			}
 			else if(pointAABBcollision(cursor,GUI_CRAFT3,GUI_BUTTON_SIZE)){
@@ -256,17 +370,22 @@ i4 proc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam){
 			}
 			break;
 		case MENU_GAME:
-			if(cursor.x < 0.125f) playerAttack();
-			else if(pointAABBcollision(cursor,GUI_EQUIPED,RD_GUI(GUI_ITEM_SIZE))){
-				inventory.cursor.item = inventory.item_primary.type;
-				inventory.cursor.preslot = INVENTOTY_EQUIP_OFFSET;
+			if(cursor.x < 0.125f) playerAttack(PLAYERATTACK_PRIMARY);
+			else if(pointAABBcollision(cursor,GUI_SECUNDARY,RD_GUI(GUI_ITEM_SIZE))){
+				inventory.cursor.item = inventory.item_secundary;
+				inventory.cursor.preslot = INVENTORY_SECUNDARY;
+				inventory.item_secundary.type = ITEM_NOTHING;
+			}
+			else if(pointAABBcollision(cursor,GUI_PRIMARY,RD_GUI(GUI_ITEM_SIZE))){
+				inventory.cursor.item = inventory.item_primary;
+				inventory.cursor.preslot = INVENTORY_PRIMARY;
 				inventory.item_primary.type = ITEM_NOTHING;
 			}
 			else{
 				for(u4 i = 0;i < 9;i++){
 					VEC2 pos = VEC2addVEC2R(VEC2mulVEC2R((VEC2){i/3,i%3},GUI_INVENTORY_SLOT_OFFSET),GUI_INVENTORY);
 					if(pointAABBcollision(cursor,pos,RD_GUI(GUI_ITEM_SIZE))){
-						inventory.cursor.item = inventory.item[i].type;
+						inventory.cursor.item = inventory.item[i];
 						inventory.cursor.preslot = i+1;
 						inventory.item[i].type = ITEM_NOTHING;
 						break;
@@ -274,7 +393,7 @@ i4 proc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam){
 				}
 			}
 			if(pointAABBcollision(cursor,GUI_SETTINGS,GUI_BUTTON_SIZE)) menu_select = MENU_SETTING;
-			if(pointAABBcollision(cursor,GUI_CRAFTING,GUI_BUTTON_SIZE)) menu_select = MENU_CRAFTING;
+			if(pointAABBcollision(cursor,GUI_CRAFTING,GUI_BUTTON_SIZE)) menu_select = MENU_CRAFTING_SIMPLE;
 			break;
 		case MENU_SETTING:
 			if(pointAABBcollision(cursor,GUI_QUIT,GUI_BIGBUTTON_SIZE)) ExitProcess(0);
@@ -313,6 +432,12 @@ void gametick(){
 			entityLightTick();
 			entityDarkTick();
 
+			switch(inventory.item_secundary.type){
+			case ITEM_TORCH:
+				if(tRnd()<1.03f) itemDegrade(INVENTORY_SECUNDARY,1);
+				break;
+			}
+
 			camera_new.shake *= 0.95f;
 			for(u4 i = 0;i < laser.cnt;i++){
 				if(laser.state[i].health>1){
@@ -323,23 +448,7 @@ void gametick(){
 					ENTITY_REMOVE(laser,i);
 				}
 			}
-			for(u4 i = 0;i < entity_block.cnt;i++){
-				if(!entity_block.state[i].countdown--){
-					if(entity_light.cnt < 128){
-						entity_light.state[entity_light.cnt].size = 0.0f;
-						entity_light.state[entity_light.cnt].color = VEC3_ZERO;
-						entity_light.state[entity_light.cnt].type = LOOT_INFANT;
-						f4 r = tRnd();
-						if(r<1.8f) entity_light.state[entity_light.cnt].loot_type = LOOT_ENERGY;
-						else       entity_light.state[entity_light.cnt].loot_type = LOOT_HEALTH;
-						entity_light.state[entity_light.cnt].health = 30;
-						entity_light.state[entity_light.cnt++].pos = (VEC2){entity_block.state[i].pos.x+0.5f,entity_block.state[i].pos.y+0.5f};
-					}
-					entity_block.state[i].countdown = 60*5;
-				}
-			}
 		}
-
 		Sleep(15);
 	}
 }
@@ -363,9 +472,11 @@ void main(){
 		building_texture[i].r = building_texture[i].b;
 		building_texture[i].b = r;
 	}
+	console_input.data = HeapAlloc(GetProcessHeap(),HEAP_ZERO_MEMORY,CONSOLE_INPUT_SIZE);
 	vram   = HeapAlloc(GetProcessHeap(),HEAP_ZERO_MEMORY,sizeof(RGB)*CHUNK_SIZE_SURFACE);
 	vramf  = HeapAlloc(GetProcessHeap(),HEAP_ZERO_MEMORY,sizeof(VEC3)*CHUNK_SIZE_SURFACE);
-	map    = HeapAlloc(GetProcessHeap(),HEAP_ZERO_MEMORY,sizeof(MAP)*SIM_SIZE_SURFACE);
+	map.type = HeapAlloc(GetProcessHeap(),HEAP_ZERO_MEMORY,SIM_SIZE_SURFACE);
+	map.data = HeapAlloc(GetProcessHeap(),HEAP_ZERO_MEMORY,SIM_SIZE_SURFACE*sizeof(MAPDATA));
 	gl_queue.message = HeapAlloc(GetProcessHeap(),0,sizeof(OPENGLMESSAGE)*1024);
 	entity_dark.state  = HeapAlloc(GetProcessHeap(),0,sizeof(ENEMY)*1024);
 	chunk.state  = HeapAlloc(GetProcessHeap(),0,sizeof(CHUNK)*1024);

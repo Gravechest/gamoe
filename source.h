@@ -14,9 +14,6 @@
 
 #define ITEM_SPRITE_OFFSET 11
 
-#define INVENTOTY_EQUIP_OFFSET 0
-#define INVENTORY_NORMAL_OFFSET 1
-
 #define WEAPON_LASER_COST 700
 
 #define ENTITY_REMOVE(TYPE,ID) for(u4 I = ID--;I < TYPE.cnt;I++) TYPE.state[I] = TYPE.state[I+1]; TYPE.cnt--;
@@ -28,6 +25,8 @@
 
 #define PLAYER_MOUSE(X) (VEC2){X.x/8.4375f,CHUNK_SIZE-X.y/8.4375f}
 #define PLAYER_SPAWN {CHUNK_SIZE/2+CHUNK_SIZE,CHUNK_SIZE/2+CHUNK_SIZE}
+
+#define TORCH_LUMINANCE (VEC3){0.1f,0.05f,0.009f} 
 
 #define LASER_LUMINANCE (VEC3){0.04f,0.005f,0.03f}
 #define RD_LASER_LUMINANCE (VEC3){LASER_LUMINANCE.r*8.0f,LASER_LUMINANCE.g*8.0f,LASER_LUMINANCE.b*8.0f}
@@ -43,6 +42,7 @@
 #define VK_D 0x44
 #define VK_L 0x4C
 #define VK_F 0x46
+#define VK_E 0x45
 
 enum{
 	ITEM_NOTHING,
@@ -70,14 +70,18 @@ enum{
 	BLOCK_ENTITY,
 	BLOCK_SPRINKLER,
 	BLOCK_TREE,
-	BLOCK_BUILDING
+	BLOCK_BUILDING,
+	BLOCK_BUILDING_ENTITY
 };
 
 enum{
 	MENU_GAME,
 	MENU_SETTING,
-	MENU_CRAFTING,
-	MENU_CONSTRUCT
+	MENU_CRAFTING_SIMPLE,
+	MENU_CONSTRUCT,
+	MENU_CRAFTING_BUILDING,
+	MENU_DEBUG,
+	MENU_CRAFTING_BLOCK
 };
 
 typedef struct{
@@ -104,16 +108,6 @@ typedef struct{
 }LASERHUB;
 
 typedef struct{
-	u4 countdown;
-	IVEC2 pos;
-}BLOCKENTITY;
-
-typedef struct{
-	u4 cnt;
-	BLOCKENTITY* state;
-}BLOCKENTITYHUB;
-
-typedef struct{
 	u1 d;
 	u1 w;
 	u1 a;
@@ -122,8 +116,13 @@ typedef struct{
 }KEYS;
 
 typedef struct{
-	u1 type;
 	u1 health;
+	u1 sub_type;
+}MAPDATA;
+
+typedef struct{
+	u1* type;
+	MAPDATA* data;
 }MAP;
 
 u4 coordToMap(u4 x,u4 y);
@@ -137,10 +136,10 @@ void collision(VEC2* pos,VEC2 vel,f4 size);
 VEC2 getInventoryPos(u4 place);
 u1 pointAABBcollision(VEC2 point,VEC2 aabb,VEC2 size);
 u1 AABBcollision(VEC2 pos1,VEC2 pos2,f4 size1,f4 size2);
+u1 lineOfSight(VEC2 pos_1,VEC2 pos_2);
 
-extern MAP* map;
+extern MAP map;
 extern LASERHUB  laser;
-extern BLOCKENTITYHUB entity_block;
 extern CAMERA camera;
 extern CAMERA camera_new;
 extern RGB*  vram;

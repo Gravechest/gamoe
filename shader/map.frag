@@ -44,8 +44,8 @@ void main(){
 	vec2 fpos = fract((TextCoords/1.015625+offset+0.0078125)*zoom-0.5);
 	vec2 fpos_n = fract((TextCoords/1.015625+offset+0.0078125)*zoom);
 	ivec2 block_pos = ivec2(((TextCoords/1.015625+offset+0.0078125)*zoom+camera-0.5));
-	vec2 block = texelFetch(map,ivec2(((TextCoords/1.015625+offset+0.0078125)*zoom+camera)),0).rg;
-	int block_id = int(block.r*255.0);
+	float block = texelFetch(map,ivec2(((TextCoords/1.015625+offset+0.0078125)*zoom+camera)),0).r;
+	int block_id = int(block*255.0);
 	vec4 tile_texture = texelFetch(tile,ivec2(((TextCoords/1.015625+offset+0.0078125)*zoom+camera)*4.0),0);
 	switch(block_id){
 	case 5:
@@ -53,9 +53,6 @@ void main(){
 			block_id = 0;
 			tile_texture.rgb = vec3(0.2,0.8,0.1);
 		}
-	case 1:
-		if(block.g + 0.25 < random(ivec2(fpos_n*4.0))) block_id = 0;
-		break;
 	}
 	ivec2 pos = ivec2((TextCoords/1.015625+offset+0.0078125)*zoom-0.5);
 	vec4 p1,p2,p3,p4;

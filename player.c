@@ -23,13 +23,13 @@ VEC2 playerLookDirection(){
 	return VEC2subVEC2R(getCursorPosMap(),VEC2subVEC2R(player.pos,camera.pos));
 }
 
-void playerAttack(){
+void playerAttack(u1 hand){
 	if(!player.weapon_cooldown){
 		switch(inventory.item_primary.type){
 		case ITEM_NOTHING:
-			player.melee_progress = 20;
+			player.melee_progress = PLAYER_FIST_ATTACKDURATION;
 			player.weapon_cooldown = PLAYER_FIST_COOLDOWN;
-			player.fist_side ^= TRUE;
+			player.fist_side = hand;
 			break;
 		case ITEM_BOMB:
 			entity_light.state[entity_light.cnt].pos = player.pos;
@@ -37,11 +37,12 @@ void playerAttack(){
 			entity_light.state[entity_light.cnt].color = BOMB_COLOR;
 			entity_light.state[entity_light.cnt].size = 0.4f;
 			entity_light.state[entity_light.cnt].health = 180;
-			entity_light.state[entity_light.cnt++].vel = VEC2divR(playerLookDirection(),20.0f);
-			//inventory.item_primary = 0;
+			entity_light.state[entity_light.cnt++].vel = VEC2divR(playerLookDirection(),24.0f);
+			inventory.item_primary.type = ITEM_NOTHING;
+			inventory.item_count[ITEM_BOMB]--;
 			break;
 		case ITEM_MELEE:
-			player.melee_progress = 60;
+			player.melee_progress = PLAYER_MELEE_ATTACKDURATION;
 			player.weapon_cooldown = PLAYER_MELEE_COOLDOWN;
 			break;
 		case ITEM_LASER:
@@ -50,16 +51,15 @@ void playerAttack(){
 				VEC2 direction = playerLookDirection();
 				RAY2D ray = ray2dCreate(player.pos,direction);
 				while(ray.square_pos.x >= 0 && ray.square_pos.x < SIM_SIZE && ray.square_pos.y >= 0 && ray.square_pos.y < SIM_SIZE){
-					if(map[coordToMap(ray.square_pos.x,ray.square_pos.y)].type==BLOCK_NORMAL) break;
+					if(map.type[coordToMap(ray.square_pos.x,ray.square_pos.y)]==BLOCK_NORMAL) break;
 					ray2dIterate(&ray);
 				}
 				f4 min_dst = 99999.0f;
 				i4 id = -1;
 				for(u4 i = 0;i < entity_dark.cnt;i++){
 					if(rayIntersectSquare(entity_dark.state[i].pos,direction,player.pos,ENEMY_SIZE/2.0f) != -1.0f){
-						u4 iterations = (u4)tAbsf(player.pos.x-entity_dark.state[i].pos.x)+(u4)tAbsf(player.pos.y-entity_dark.state[i].pos.y);
 						f4 dst = VEC2distance(player.pos,entity_dark.state[i].pos);
-						if(lineOfSight(player.pos,direction,iterations) && min_dst > dst){
+						if(lineOfSight(player.pos,entity_dark.state[i].pos) && min_dst > dst){
 							min_dst = dst;
 							id = i;
 						}
@@ -112,8 +112,8 @@ VEC2 meleeHitPos(){
 	case ITEM_NOTHING:
 		VEC2 offset = VEC2rotR(hit_pos,PI*0.5f);
 		VEC2div(&offset,2.4f);
-		if(player.fist_side) VEC2addVEC2(&hit_pos,offset);
-		else                 VEC2subVEC2(&hit_pos,offset);
+		if(player.fist_side) VEC2subVEC2(&hit_pos,offset);
+		else                 VEC2addVEC2(&hit_pos,offset);
 		VEC2mul(&hit_pos,sinf((f4)player.melee_progress/PLAYER_FIST_COOLDOWN*PI)*1.8f);
 		break;
 	case ITEM_MELEE:
@@ -124,13 +124,14 @@ VEC2 meleeHitPos(){
 	return hit_pos;
 }
 
-u4 blockHit(VEC2 hit_pos,u4 m_pos,u4 damage){
+u4 blockHitParticle(VEC2 hit_pos,u4 m_pos,u4 damage){
 	IVEC2 tile_crd = posToTileTextureCoord(hit_pos);
-	tile_texture_data[coordToTileTexture(tile_crd.x,tile_crd.y)].r >>= 1;
-	tile_texture_data[coordToTileTexture(tile_crd.x,tile_crd.y)].g >>= 1;
-	tile_texture_data[coordToTileTexture(tile_crd.x,tile_crd.y)].b >>= 1;
-	if(map[m_pos].health < damage){
-		map[m_pos].type = BLOCK_AIR;
+	u4 tile_pos = coordTileTextureToTileTexture(tile_crd.x,tile_crd.y);
+	tile_texture_data[tile_pos].r >>= 1;
+	tile_texture_data[tile_pos].g >>= 1;
+	tile_texture_data[tile_pos].b >>= 1;
+	if(map.data[m_pos].health < damage){
+		map.type[m_pos] = BLOCK_AIR;
 		gl_queue.message[gl_queue.cnt].id = GLMESSAGE_SINGLE_MAPEDIT;
 		gl_queue.message[gl_queue.cnt++].pos = (IVEC2){hit_pos.x,hit_pos.y};
 		tileTextureGen((VEC2){2.0f,64.0f},(VEC2){2.0f,64.0f},(VEC2){2.0f,64.0f},m_pos);
@@ -138,7 +139,7 @@ u4 blockHit(VEC2 hit_pos,u4 m_pos,u4 damage){
 		gl_queue.message[gl_queue.cnt++].pos = (IVEC2){m_pos/SIM_SIZE,m_pos%SIM_SIZE};
 		return BLOCKHIT_DESTROY;
 	}
-	else map[m_pos].health -= damage;
+	else map.data[m_pos].health -= damage;
 	player.melee_progress = 0;
 	gl_queue.message[gl_queue.cnt].id = GLMESSAGE_SINGLE_TILEEDIT;
 	gl_queue.message[gl_queue.cnt++].pos = (IVEC2){tile_crd.x,tile_crd.y};
@@ -149,7 +150,27 @@ u4 blockHit(VEC2 hit_pos,u4 m_pos,u4 damage){
 	return BLOCKHIT_NORMAL;
 }
 
-#include <stdio.h>
+u4 blockHit(VEC2 hit_pos,u4 m_pos,u4 damage){
+	IVEC2 tile_crd = posToTileTextureCoord(hit_pos);
+	u4 tile_pos = coordTileTextureToTileTexture(tile_crd.x,tile_crd.y);
+	tile_texture_data[tile_pos].r >>= 1;
+	tile_texture_data[tile_pos].g >>= 1;
+	tile_texture_data[tile_pos].b >>= 1;
+	if(map.data[m_pos].health < damage){
+		map.type[m_pos] = BLOCK_AIR;
+		gl_queue.message[gl_queue.cnt].id = GLMESSAGE_SINGLE_MAPEDIT;
+		gl_queue.message[gl_queue.cnt++].pos = (IVEC2){hit_pos.x,hit_pos.y};
+		tileTextureGen((VEC2){2.0f,64.0f},(VEC2){2.0f,64.0f},(VEC2){2.0f,64.0f},m_pos);
+		gl_queue.message[gl_queue.cnt].id = GLMESSAGE_WHOLE_TILEEDIT;
+		gl_queue.message[gl_queue.cnt++].pos = (IVEC2){m_pos/SIM_SIZE,m_pos%SIM_SIZE};
+		return BLOCKHIT_DESTROY;
+	}
+	else map.data[m_pos].health -= damage;
+	player.melee_progress = 0;
+	gl_queue.message[gl_queue.cnt].id = GLMESSAGE_SINGLE_TILEEDIT;
+	gl_queue.message[gl_queue.cnt++].pos = (IVEC2){tile_crd.x,tile_crd.y};
+	return BLOCKHIT_NORMAL;
+}
 
 void playerGameTick(){
 	if(!player.health){
@@ -166,28 +187,23 @@ void playerGameTick(){
 		}
 	}
 	else{
-		if(key_pressed.w){
-			if(key_pressed.d || key_pressed.a) player.vel.y+=PLAYER_SPEED * 0.7f;
-			else                               player.vel.y+=PLAYER_SPEED;
-		}
-		if(key_pressed.s){
-			if(key_pressed.d || key_pressed.a) player.vel.y-=PLAYER_SPEED * 0.7f;
-			else                               player.vel.y-=PLAYER_SPEED;
-		}
-		if(key_pressed.d){
-			if(key_pressed.s || key_pressed.w) player.vel.x+=PLAYER_SPEED * 0.7f;
-			else                               player.vel.x+=PLAYER_SPEED;
-		}
-		if(key_pressed.a){
-			if(key_pressed.s || key_pressed.w) player.vel.x-=PLAYER_SPEED * 0.7f;
-			else                               player.vel.x-=PLAYER_SPEED;
-		}
-		if(player.energy && key_pressed.mouse_right & 0x80){
-			player.flashlight = TRUE;
-			player.energy--;
-		}
-		else{
-			player.flashlight = FALSE;
+		if(menu_select == MENU_GAME){
+			if(key_pressed.w){
+				if(key_pressed.d || key_pressed.a) player.vel.y+=PLAYER_SPEED * 0.7f;
+				else                               player.vel.y+=PLAYER_SPEED;
+			}
+			if(key_pressed.s){
+				if(key_pressed.d || key_pressed.a) player.vel.y-=PLAYER_SPEED * 0.7f;
+				else                               player.vel.y-=PLAYER_SPEED;
+			}
+			if(key_pressed.d){
+				if(key_pressed.s || key_pressed.w) player.vel.x+=PLAYER_SPEED * 0.7f;
+				else                               player.vel.x+=PLAYER_SPEED;
+			}
+			if(key_pressed.a){
+				if(key_pressed.s || key_pressed.w) player.vel.x-=PLAYER_SPEED * 0.7f;
+				else                               player.vel.x-=PLAYER_SPEED;
+			}
 		}
 		VEC2addVEC2(&player.pos,player.vel);
 		collision(&player.pos,player.vel,PLAYER_SIZE/2.0f);
@@ -204,15 +220,15 @@ void playerGameTick(){
 						ENTITY_REMOVE(entity_dark,i);
 					}
 				}
-				switch(map[m_pos].type){
+				switch(map.type[m_pos]){
 				case BLOCK_NORMAL:
-					if(blockHit(hit_pos,m_pos,30)==BLOCKHIT_DESTROY){
-						itemEntitySpawn((VEC2){(f4)(u4)hit_pos.x+0.5f,(f4)(u4)hit_pos.y+0.5f},VEC2_ZERO,ITEM_STONEDUST);
+					if(blockHitParticle(hit_pos,m_pos,30)==BLOCKHIT_DESTROY){
+						itemEntitySpawnNew((VEC2){(f4)(u4)hit_pos.x+0.5f,(f4)(u4)hit_pos.y+0.5f},VEC2_ZERO,ITEM_STONEDUST);
 					}
 					break;
 				case BLOCK_TREE:
-					if(blockHit(hit_pos,m_pos,100)==BLOCKHIT_DESTROY){
-						itemEntitySpawn((VEC2){(f4)(u4)hit_pos.x+0.5f,(f4)(u4)hit_pos.y+0.5f},VEC2_ZERO,ITEM_LOG);
+					if(blockHitParticle(hit_pos,m_pos,100)==BLOCKHIT_DESTROY){
+						itemEntitySpawnNew((VEC2){(f4)(u4)hit_pos.x+0.5f,(f4)(u4)hit_pos.y+0.5f},VEC2_ZERO,ITEM_LOG);
 					}
 					break;
 				}
@@ -223,12 +239,12 @@ void playerGameTick(){
 						ENTITY_REMOVE(entity_dark,i);
 					}
 				}
-				switch(map[m_pos].type){
+				switch(map.type[m_pos]){
 				case BLOCK_NORMAL:
-					blockHit(hit_pos,m_pos,30);
+					blockHitParticle(hit_pos,m_pos,30);
 					break;
 				case BLOCK_TREE:
-					blockHit(hit_pos,m_pos,30);
+					blockHitParticle(hit_pos,m_pos,30);
 					break;
 				}
 				break;

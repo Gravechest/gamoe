@@ -8,13 +8,14 @@
 #include "entity_item.h"
 #include "player.h"
 #include "entity_light.h"
+#include "inventory.h"
 
 u4 entity_shadows_cnt;
 IVEC2 entity_shadows[255];
 
 void mapIlluminate(RAY2D ray,VEC3 color){
 	while(ray.square_pos.x >= 0 && ray.square_pos.x < camera.zoom && ray.square_pos.y >= 0 && ray.square_pos.y < camera.zoom){
-		switch(map[coordToMap(ray.square_pos.x+camera.pos.x,ray.square_pos.y+camera.pos.y)].type){
+		switch(map.type[coordToMap(ray.square_pos.x+camera.pos.x,ray.square_pos.y+camera.pos.y)]){
 		case BLOCK_ENTITY:
 			VEC3addVEC3(&vramf[ray.square_pos.y*camera.zoom+ray.square_pos.x],color);
 			for(u4 i = 0;i < entity_item.cnt;i++){
@@ -61,7 +62,7 @@ void illuminateOutside(VEC3 color,VEC2 pos,f4 angle){
 		RAY2D ray = ray2dCreate(pos,direction);
 		while((ray.square_pos.x < 0 || ray.square_pos.x >= camera.zoom || ray.square_pos.y < 0 || ray.square_pos.y >= camera.zoom)){
 			IVEC2 block = {(ray.square_pos.x+(u4)camera.pos.x),(ray.square_pos.y+(u4)camera.pos.y)};
-			if(block.x>SIM_SIZE||block.y>SIM_SIZE||block.x<0||block.y<0||map[coordToMap(block.x,block.y)].type==BLOCK_NORMAL) break;
+			if(block.x>SIM_SIZE||block.y>SIM_SIZE||block.x<0||block.y<0||map.type[coordToMap(block.x,block.y)]==BLOCK_NORMAL) break;
 			ray2dIterate(&ray);
 		}
 		mapIlluminate(ray,color);
@@ -110,8 +111,8 @@ void lighting(){
 		f4 dv = ENTITY_ITEM_SIZE/(u4)(ENTITY_ITEM_SIZE+1);
 		for(f4 x = entity_item.state[i].pos.x-ENTITY_ITEM_SIZE*0.5f;x <= entity_item.state[i].pos.x+ENTITY_ITEM_SIZE*0.5f;x+=dv){
 			for(f4 y = entity_item.state[i].pos.y-ENTITY_ITEM_SIZE*0.5f;y <= entity_item.state[i].pos.y+ENTITY_ITEM_SIZE*0.5f;y+=dv){
-				if(map[coordToMap(x,y)].type==BLOCK_AIR){
-					map[coordToMap(x,y)].type = BLOCK_ENTITY;
+				if(map.type[coordToMap(x,y)]==BLOCK_AIR){
+					map.type[coordToMap(x,y)] = BLOCK_ENTITY;
 					entity_shadows[entity_shadows_cnt++] = (IVEC2){x,y};
 				}
 			}
@@ -121,16 +122,12 @@ void lighting(){
 		f4 dv = ENEMY_SIZE/(u4)(ENEMY_SIZE+1);
 		for(f4 x = entity_dark.state[i].pos.x-ENEMY_SIZE*0.5f;x <= entity_dark.state[i].pos.x+ENEMY_SIZE*0.5f;x+=dv){
 			for(f4 y = entity_dark.state[i].pos.y-ENEMY_SIZE*0.5f;y <= entity_dark.state[i].pos.y+ENEMY_SIZE*0.5f;y+=dv){
-				if(map[coordToMap(x,y)].type==BLOCK_AIR){
-					map[coordToMap(x,y)].type = BLOCK_ENTITY;
+				if(map.type[coordToMap(x,y)]==BLOCK_AIR){
+					map.type[coordToMap(x,y)] = BLOCK_ENTITY;
 					entity_shadows[entity_shadows_cnt++] = (IVEC2){x,y};
 				}
 			}
 		}
-	}
-	if(player.flashlight){
-		VEC2 angle = VEC2subVEC2R(getCursorPosMap(),VEC2subVEC2R(player.pos,camera.pos));
-		lightsourcePartEmit(FLASHLIGHT_LUMINANCE,player.pos,angle,128,0.15f);
 	}
 	for(u4 i = 0;i < entity_light.cnt;i++){
 		lightsourceEmit(entity_light.state[i].color,entity_light.state[i].pos,1024);
@@ -146,8 +143,16 @@ void lighting(){
 		}
 		if(laser.state[i].health == 1) laser.state[i].health = 0;
 	}
+	static f4 flickering = 0.0f;
+	switch(inventory.item_secundary.type){
+	case ITEM_TORCH:
+		lightsourceEmit(VEC3mulR(TORCH_LUMINANCE,flickering),player.pos,1024);
+		flickering += tRnd() + 4.0f;
+		flickering /= 4.0f;
+		break;
+	}
 	for(u4 i = 0;i < entity_shadows_cnt;i++){
-		map[coordToMap(entity_shadows[i].x,entity_shadows[i].y)].type = BLOCK_AIR;
+		map.type[coordToMap(entity_shadows[i].x,entity_shadows[i].y)] = BLOCK_AIR;
 	}
 	if(player.melee_progress){
 		VEC2 end_pos = meleeHitPos();

@@ -13,12 +13,17 @@ enum{
 };
 
 typedef struct{
+	u1 type;
+	u1 durability;
+}ITEM;
+
+typedef struct{
 	VEC3 luminance;
 	VEC2 pos;
 	VEC2 vel;
 	f4 size;
 	u1 type;
-	u1 item_type;
+	ITEM item;
 	union{
 		u2 pickup_countdown;
 		u2 health;
@@ -33,6 +38,7 @@ typedef struct{
 i4 inventoryEmptySlot();
 void entityItemTick();
 void blockParticleSpawn(VEC2 pos,VEC2 vel);
-void itemEntitySpawn(VEC2 pos,VEC2 vel,u4 item);
+void itemEntitySpawn(VEC2 pos,VEC2 vel,ITEM item);
+void itemEntitySpawnNew(VEC2 pos,VEC2 vel,u4 item_type);
 
 extern ITEM_ENTITYHUB entity_item;

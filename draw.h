@@ -27,3 +27,4 @@ void drawLine(VEC2 origin,VEC2 destination,VEC3 color,f4 thickness);
 void drawParticle(VEC2 pos,VEC2 size,VEC3 luminance);
 void drawRect(VEC2 pos,VEC2 size,VEC3 color);
 void drawString(VEC2 pos,VEC2 size,u1* string);
+void drawItemPiece(VEC2 pos,VEC2 size,VEC2 texture_pos,VEC2 texture_size,VEC3 luminance);

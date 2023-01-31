@@ -8,13 +8,21 @@
 
 ENEMYHUB entity_dark;
 
+void entityDarkHurt(u4 id,u4 ammount){
+	if(entity_dark.state[id].health<ammount){
+		ENTITY_REMOVE(entity_dark,id);
+		return;
+	}
+	entity_dark.state[id].health -= ammount;
+}
+
 void entityDarkTick(){
-	if(tRnd()<1.003f && entity_dark.cnt < 64){
+	if(/*tRnd()<1.003f && */entity_dark.cnt < 16){
 		VEC2 spawn = (VEC2){(tRnd()-1.0f)*CHUNK_SIZE,(tRnd()-1.0f)*CHUNK_SIZE};
 		if(tRnd()<1.5f) spawn.x += CHUNK_SIZE;
 		if(tRnd()<1.5f) spawn.y += CHUNK_SIZE;
 		entity_dark.state[entity_dark.cnt].pos = spawn;
-		entity_dark.state[entity_dark.cnt].health = 100;
+		entity_dark.state[entity_dark.cnt].health = 10;
 		entity_dark.state[entity_dark.cnt++].vel = VEC2_ZERO;
 	}
 	for(u4 i = 0;i < entity_dark.cnt;i++){
