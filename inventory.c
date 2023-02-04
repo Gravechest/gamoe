@@ -14,7 +14,7 @@ u4 itemDegrade(u4 slot,u4 ammount){
 }
 
 i4 inventoryEmptySlot(){
-	for(u4 j = 0;j < INVENTORY_ALL_SIZE;j++){
+	for(u4 j = INVENTORY_ALL_SIZE;j >= 0;j--){
 		if(!inventory.item_all[j].type){
 			return j;
 		}
@@ -45,15 +45,8 @@ void inventoryAdd(u4 item){
 	}
 }
 
-void inventoryCrafting(u4 item1,u4 item2,u4 item3,u4 item4){
-	inventory.item_count[item1]--;
-	inventory.item_count[item2]--;
-	inventory.item_count[item3]--;
-	inventory.item_count[item4]--;
-	inventory.item_all[inventorySearch(item1)].type = ITEM_NOTHING;
-	inventory.item_all[inventorySearch(item2)].type = ITEM_NOTHING;
-	inventory.item_all[inventorySearch(item3)].type = ITEM_NOTHING;
-	inventory.item_all[inventorySearch(item4)].type = ITEM_NOTHING;
+void inventoryRemoveM(u1* item){
+	while(*item++) inventoryRemove(*item);
 }
 
 VEC2 getInventoryPos(u4 place){

@@ -60,7 +60,7 @@ void entityLightTick(){
 					RAY2D ray = ray2dCreate(entity_light.state[i].pos,direction);
 					while(ray.square_pos.x >= 0 && ray.square_pos.x < SIM_SIZE && ray.square_pos.y >= 0 && ray.square_pos.y < SIM_SIZE){
 						u4 m_pos = coordToMap(ray.square_pos.x,ray.square_pos.y);
-						if(map.type[m_pos] == BLOCK_NORMAL){
+						if(map.type[m_pos] != BLOCK_AIR){
 							blockHit(ray2dGetCoords(ray),m_pos,10);
 							break;
 						}

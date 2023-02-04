@@ -48,5 +48,5 @@ extern INVENTORY inventory;
 i4 inventorySearch(u4 item);
 void inventoryRemove(u4 item);
 void inventoryAdd(u4 item);
-void inventoryCrafting(u4 item1,u4 item2,u4 item3,u4 item4);
 u4 itemDegrade(u4 slot,u4 ammount);
+void inventoryRemoveM(u1* item);

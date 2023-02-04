@@ -32,14 +32,22 @@ void GUIcraftingRecipe(VEC2 pos){
 	GUIframe((VEC2){pos.x+0.6f,pos.y},RD_GUI(8.0f));
 }
 
-void GUIcraftingRecipeItem(VEC2 pos,u4 item1,u4 item2,u4 item3,u4 item4){
-	u4 item1_exist = inventory.item_count[item1] ? inventory.item_count[item1]-- : 0;
-	u4 item2_exist = inventory.item_count[item2] ? inventory.item_count[item2]-- : 0;
-	u4 item3_exist = inventory.item_count[item3] ? inventory.item_count[item3]-- : 0;
-	u4 item4_exist = inventory.item_count[item4] ? inventory.item_count[item4]-- : 0;
+void GUIcraftingRecipeItem(VEC2 pos,u1* item){
+	u1 item_exist[16];
+	for(u4 i = 0;;i++){
+		item_exist[i] = inventory.item_count[item[i]] ? inventory.item_count[item[i]]-- : 0;
+		if(!item[i]){
+			for(--i;i >= 0;i--){
+				if(item_exist[i]){
+					drawEnemy((VEC2){pos.x+0.3f+0.1f*i,pos.y},RD_GUI(6.0f),TEXTURE16_RENDER(ITEM_SPRITE_OFFSET+item1),(VEC3){1.0f,1.0f,1.0f});
+					inventory.item_count[item1]++;
+				}
+				else drawEnemy((VEC2){pos.x+0.3f+0.1f*i,pos.y},RD_GUI(6.0f),TEXTURE16_RENDER(ITEM_SPRITE_OFFSET+item2),(VEC3){0.5f,0.5f,0.5f});
+			}
+		}
+	}
 	if(item1_exist){
-		drawEnemy((VEC2){pos.x+0.3f,pos.y},RD_GUI(6.0f),TEXTURE16_RENDER(ITEM_SPRITE_OFFSET+item1),(VEC3){1.0f,1.0f,1.0f});
-		inventory.item_count[item1]++;
+
 	}
 	else drawEnemy((VEC2){pos.x+0.3f,pos.y},RD_GUI(6.0f),TEXTURE16_RENDER(ITEM_SPRITE_OFFSET+item1),(VEC3){0.5f,0.5f,0.5f});
 	if(item2_exist){
@@ -132,7 +140,6 @@ void GUIdraw(){
 	sprintf(str,"%i/%i",player.scrap,SCRAP_MAX);
 	drawString((VEC2){GUI_SCRAP.x+0.18f,GUI_SCRAP.y},RD_GUI(2.5f),str);
 	VEC2 cursor = getCursorPosGUI();
-#define GUI_DEBUG_SIZE (VEC2){0.5f,0.1f}
 	switch(menu_select){
 	case MENU_DEBUG:
 		glUseProgram(color_shader);
@@ -148,8 +155,10 @@ void GUIdraw(){
 		GUIcraftFrame();
 		glUseProgram(entity_dark_shader);
 		GUIcraftingRecipeItem(GUI_CRAFT1,ITEM_STONEDUST,ITEM_STONEDUST,ITEM_STONEDUST,ITEM_STONEDUST);
+		GUIcraftingRecipeItem(GUI_CRAFT2,ITEM_TORCH,ITEM_TORCH,ITEM_TORCH,ITEM_TORCH);
 		glUseProgram(font_shader);
 		drawString((VEC2){GUI_CRAFT1.x-0.12f,GUI_CRAFT1.y},RD_GUI(2.5f),"stonewall");
+		drawString((VEC2){GUI_CRAFT2.x-0.03f,GUI_CRAFT2.y},RD_GUI(2.5f),"lamp");
 		cursorDraw(cursor);
 		break;
 	case MENU_CRAFTING_BUILDING:
@@ -159,15 +168,15 @@ void GUIdraw(){
 		GUIcraftingRecipeItem(GUI_CRAFT1,ITEM_STONEDUST,ITEM_STONEDUST,ITEM_STONEDUST,ITEM_STONEDUST);
 		GUIcraftingRecipeItem(GUI_CRAFT2,ITEM_LOG,ITEM_LOG,ITEM_LOG,ITEM_LOG);
 		glUseProgram(font_shader);
-		drawString((VEC2){GUI_CRAFT1.x-0.12f,GUI_CRAFT1.y},RD_GUI(2.5f),"weapon-station");
-		drawString((VEC2){GUI_CRAFT2.x-0.12f,GUI_CRAFT2.y},RD_GUI(2.5f),"block-station");
+		drawString((VEC2){GUI_CRAFT1.x-0.12f,GUI_CRAFT1.y},RD_GUI(2.5f),"block-station");
+		drawString((VEC2){GUI_CRAFT2.x-0.12f,GUI_CRAFT2.y},RD_GUI(2.5f),"weapon-station");
 		cursorDraw(cursor);
 		break;
 	case MENU_GAME:
 		for(u4 i = 0;i < entity_block.cnt;i++){
 			if(map.type[coordToMap(entity_block.state[i].pos.x,entity_block.state[i].pos.y)]==BLOCK_BUILDING_ENTITY){
 				VEC2 b_pos = (VEC2){(f4)entity_block.state[i].pos.x+0.5f,(f4)entity_block.state[i].pos.y+0.5f};
-				if(VEC2distance(player.pos,b_pos)<5.0f){
+				if(VEC2distance(player.pos,b_pos)<BLOCKCRAFT_RANGE){
 					drawString(mapCrdToRenderCrd(b_pos),RD_GUI(2.5f),"E");
 				}
 			}
@@ -181,6 +190,7 @@ void GUIdraw(){
 			VEC2sub(&cursor,camera.zoom/2.0f);
 			cursor.x = (u4)cursor.x;
 			cursor.y = (u4)cursor.y;
+			if(construction.size&1) VEC2add(&cursor,0.5f);
 			glUseProgram(color_shader);
 			GUIframe(mapCrdToRenderCrd(cursor),RD_SQUARE(construction.size));
 			glUseProgram(sprite_shader);

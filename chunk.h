@@ -17,6 +17,7 @@ typedef struct{
 		u8 id;
 	};
 	MAP chunk;
+	RGB* tile_texture;
 }CHUNK;
 
 typedef struct{

@@ -18,6 +18,7 @@
 #define GUI_BIGBUTTON_SIZE (VEC2){0.2f,0.04f}
 #define GUI_SETTINGS (VEC2){0.88f,0.9f}
 #define GUI_CRAFTING (VEC2){0.88f,-0.1f}
+#define GUI_DEBUG_SIZE (VEC2){0.5f,0.1f}
 
 #define GUI_QUIT (VEC2){0.0f,-0.43f}
 #define GUI_FULLSCREEN (VEC2){0.0f,-0.33f}
