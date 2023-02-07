@@ -51,7 +51,7 @@ void entityItemTick(){
 			VEC2mul(&entity_item.state[i].vel,PR_FRICTION);
 			if(!entity_item.state[i].pickup_countdown){
 				if(VEC2distance(entity_item.state[i].pos,player.pos)<2.0f){
-					i4 slot = inventoryEmptySlot();
+					i4 slot = inventoryAdd(entity_item.state[i].item.type);
 					if(slot!=-1){
 						VEC2 egui_pos = mapCrdToRenderCrd(entity_item.state[i].pos);
 						entityToGuiSpawn(egui_pos,getInventoryPos(slot),ENTITY_ITEM_SIZE,slot,entity_item.state[i].item);

@@ -3,6 +3,7 @@
 #include "source.h"
 
 BLOCKENTITYHUB entity_block;
+BLOCKENTITYGLOBALHUB entity_block_global;
 
 void entityBlockTick(){
 	for(u4 i = 0;i < entity_block.cnt;i++){

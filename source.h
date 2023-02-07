@@ -7,12 +7,7 @@
 
 #pragma comment(lib,"Winmm.lib")
 
-#define RECIPY_LAMP (u1[]){ITEM_TORCH,ITEM_TORCH,ITEM_TORCH,ITEM_TORCH,0}
-#define RECIPY_BLOCKSTATION (u1[]){ITEM_STONEDUST,ITEM_STONEDUST,ITEM_STONEDUST,ITEM_STONEDUST,0}
-#define RECIPY_CRAFTINGSTATION (u1[]){ITEM_STONEDUST,ITEM_STONEDUST,ITEM_STONEDUST,ITEM_STONEDUST,0}
-#define RECIPY_LAMP (u1[]){ITEM_TORCH,ITEM_TORCH,ITEM_TORCH,ITEM_TORCH,0}
-#define RECIPY_STONEWALL (u1[]){ITEM_STONEDUST,ITEM_STONEDUST,ITEM_STONEDUST,ITEM_STONEDUST,0}
-#define RECIPY_TORCH (u1[]){ITEM_TORCH,ITEM_TORCH,ITEM_TORCH,ITEM_TORCH,0}
+#define MENU_BUILDING_OFFSET 64
 
 #define BLOCKCRAFT_RANGE 3.0f
 
@@ -55,17 +50,6 @@
 #define VK_E 0x45
 
 enum{
-	ITEM_NOTHING,
-	ITEM_MELEE,
-	ITEM_PICKAXE,
-	ITEM_BOMB,
-	ITEM_LASER,
-	ITEM_STONEDUST,
-	ITEM_LOG,
-	ITEM_TORCH
-};
-
-enum{
 	SPRITE_PLAYER,
 	SPRITE_BULLET,
 	SPRITE_CROSSHAIR,
@@ -89,9 +73,7 @@ enum{
 	MENU_SETTING,
 	MENU_CRAFTING_SIMPLE,
 	MENU_CONSTRUCT,
-	MENU_CRAFTING_BUILDING,
-	MENU_DEBUG,
-	MENU_CRAFTING_BLOCK
+	MENU_DEBUG
 };
 
 typedef struct{
@@ -133,6 +115,7 @@ typedef struct{
 typedef struct{
 	u1* type;
 	MAPDATA* data;
+	u1 unopenable[255];
 }MAP;
 
 u4 coordToMap(u4 x,u4 y);
@@ -146,6 +129,7 @@ void collision(VEC2* pos,VEC2 vel,f4 size);
 VEC2 getInventoryPos(u4 place);
 u1 pointAABBcollision(VEC2 point,VEC2 aabb,VEC2 size);
 u1 AABBcollision(VEC2 pos1,VEC2 pos2,f4 size1,f4 size2);
+u1 pointAABBcollision(VEC2 point,VEC2 aabb,VEC2 size);
 u1 lineOfSight(VEC2 pos_1,VEC2 pos_2);
 
 extern MAP map;

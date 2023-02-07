@@ -14,7 +14,10 @@ enum{
 
 typedef struct{
 	u1 type;
-	u1 durability;
+	union{
+		u1 durability;
+		u1 ammount;
+	};
 }ITEM;
 
 typedef struct{

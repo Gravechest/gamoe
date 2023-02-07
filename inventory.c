@@ -3,18 +3,21 @@
 #include "gui.h"
 #include "source.h"
 
-INVENTORY inventory = {.item_primary = {ITEM_BOMB,0xff,TRUE},.item_secundary = {ITEM_TORCH,0xff,TRUE}};
+INVENTORY inventory = {.item_primary = {ITEM_BOMB,30,TRUE},.item_secundary = {ITEM_TORCH,0xff,TRUE},
+.stackable[ITEM_LOG] = TRUE,
+.stackable[ITEM_STONEDUST] = TRUE,
+.stackable[ITEM_BOMB] = TRUE};
 
 u4 itemDegrade(u4 slot,u4 ammount){
 	if(inventory.item_all[slot].durability < ammount){
-		inventory.item_count[inventory.item_all[slot].type]--;
+		inventory.item_ammount[inventory.item_all[slot].type]--;
 		inventory.item_all[slot].type = ITEM_NOTHING;
 	}
 	inventory.item_all[slot].durability -= ammount;
 }
 
 i4 inventoryEmptySlot(){
-	for(u4 j = INVENTORY_ALL_SIZE;j >= 0;j--){
+	for(i4 j = INVENTORY_SLOT_AMM-1;j >= 0;j--){
 		if(!inventory.item_all[j].type){
 			return j;
 		}
@@ -23,7 +26,7 @@ i4 inventoryEmptySlot(){
 }
 
 i4 inventorySearch(u4 item){
-	for(u4 j = 0;j < INVENTORY_ALL_SIZE;j++){
+	for(i4 j = INVENTORY_SLOT_AMM-1;j >= 0;j--){
 		if(inventory.item_all[j].type == item){
 			return j;
 		}
@@ -31,18 +34,53 @@ i4 inventorySearch(u4 item){
 	return -1;
 }
 
-void inventoryRemove(u4 item){
+i4 inventorySlotStackable(u4 item){
 	i4 slot = inventorySearch(item);
-	inventory.item_all[slot].type = ITEM_NOTHING;
-	inventory.item_count[item]--;
+	if(slot!=-1) return slot;
+	return inventoryEmptySlot();
 }
 
-void inventoryAdd(u4 item){
+void inventoryRemove(u4 item){
+	i4 slot = inventorySearch(item);
+	inventory.item_ammount[item]--;
+	if(inventory.stackable[item]){
+		if(!--inventory.item_all[slot].ammount){
+			inventory.item_all[slot].type = ITEM_NOTHING;
+		}
+	}
+	else inventory.item_all[slot].type = ITEM_NOTHING;
+}
+
+i4 inventoryAdd(u4 item){
 	i4 slot = inventoryEmptySlot(item);
 	if(slot!=-1){
 		inventory.item_all[slot] = (SLOT){.type = item,.durability = 0xff,.visible = TRUE};
-		inventory.item_count[item]++;
+		inventory.item_ammount[item]++;
 	}
+	return slot;
+}
+
+i4 inventoryAddStackable(u4 item){
+	for(i4 j = INVENTORY_SLOT_AMM-1;j >= 0;j--){
+		if(inventory.item_all[j].type == item){
+			inventory.item_all[j].ammount++;
+			inventory.item_all[j].visible = TRUE;
+			inventory.item_all[j].type = item;
+			inventory.item_ammount[item]++;
+			return j;
+		}
+	}
+	i4 slot = inventoryEmptySlot(item);
+	if(slot!=-1){
+		inventory.item_all[slot] = (SLOT){.type = item,.ammount = 1,.visible = TRUE};
+		inventory.item_ammount[item]++;
+	}
+	return slot;
+}
+
+i4 inventoryAddItem(u4 item){
+	if(inventory.stackable[item]) return inventoryAddStackable(item);
+	else                          return inventoryAdd(item);
 }
 
 void inventoryRemoveM(u1* item){

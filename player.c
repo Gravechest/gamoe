@@ -39,7 +39,7 @@ void playerAttack(u1 hand){
 			entity_light.state[entity_light.cnt].health = 180;
 			entity_light.state[entity_light.cnt++].vel = VEC2divR(playerLookDirection(),24.0f);
 			//inventory.item_primary.type = ITEM_NOTHING;
-			//inventory.item_count[ITEM_BOMB]--;
+			//inventory.item_ammount[ITEM_BOMB]--;
 			break;
 		case ITEM_MELEE:
 			player.melee_progress = PLAYER_MELEE_ATTACKDURATION;

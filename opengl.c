@@ -149,9 +149,17 @@ void openglInit(){
 	glVertexAttribPointer(1,2,GL_FLOAT,0,4 * sizeof(float),(void*)(2 * sizeof(float)));
 }
 
+void drawItemStackable(VEC2 pos,SLOT item){
+	if(!item.visible) return;
+	if(!item.type)    return;
+	if(!inventory.stackable[item.type]) return;
+	drawSprite(pos,RD_GUI(GUI_ITEM_SIZE),TEXTURE16_RENDER(item.type+ITEM_SPRITE_OFFSET));
+}
+
 void drawItem(VEC2 i_pos,SLOT item){
 	if(!item.visible) return;
 	if(!item.type)    return;
+	if(inventory.stackable[item.type]) return;
 	f4 durability = item.durability/256.0f;
 	f4 durability_r = 1.0f-item.durability/256.0f;
 	VEC2 pos = i_pos;
@@ -163,9 +171,9 @@ void drawItem(VEC2 i_pos,SLOT item){
 	size.y *= durability;
 	size2.y *= durability_r;
 	VEC2 t_pos = texture16Render(item.type+ITEM_SPRITE_OFFSET);
-	drawItemPiece(pos,size,t_pos,(VEC2){TEXTURE16_RD_SIZE,TEXTURE16_RD_SIZE*durability},(VEC3){1.0f,1.0f,1.0f});
+	drawItemPiece(pos,size,t_pos,(VEC2){TEXTURE16_RD_SIZE,TEXTURE16_RD_SIZE*durability},COLOR_WHITE);
 	t_pos.y += TEXTURE16_RD_SIZE*durability;
-	drawItemPiece(pos2,size2,t_pos,(VEC2){TEXTURE16_RD_SIZE,TEXTURE16_RD_SIZE*durability_r},(VEC3){0.5f,0.5f,0.5f});
+	drawItemPiece(pos2,size2,t_pos,(VEC2){TEXTURE16_RD_SIZE,TEXTURE16_RD_SIZE*durability_r},COLOR_GREY);
 }
 
 void opengl(){
@@ -311,14 +319,10 @@ void opengl(){
 	}
 
 	glUseProgram(sprite_shader);
+	for(u4 i = 0;i < INVENTORY_SLOT_AMM;i++) drawItemStackable(getInventoryPos(i),inventory.item_all[i]);
 	if(player.health) drawSprite(mapCrdToRenderCrd(player.pos),RD_SQUARE(PLAYER_SIZE),TEXTURE16_RENDER(SPRITE_PLAYER));
 	glUseProgram(entity_dark_shader);
-	for(u4 i = 0;i < 9;i++){
-		VEC2 draw_pos = VEC2addVEC2R(VEC2mulVEC2R((VEC2){i/3,i%3},GUI_INVENTORY_SLOT_OFFSET),GUI_INVENTORY);
-		drawItem(draw_pos,inventory.item[i]);
-	}
-	drawItem(GUI_PRIMARY,inventory.item_primary);
-	drawItem(GUI_SECUNDARY,inventory.item_secundary);
+	for(u4 i = 0;i < INVENTORY_SLOT_AMM;i++) drawItem(getInventoryPos(i),inventory.item_all[i]);
 	for(u4 i = 0;i < entity_item.cnt;i++){
 		VEC3mul(&entity_item.state[i].luminance,0.008f);
 		VEC2 draw_pos = mapCrdToRenderCrd(entity_item.state[i].pos);
@@ -355,7 +359,9 @@ void opengl(){
 	GUIdraw();
 
 	for(u4 i = 0;i < entity_togui.cnt;i++){
-		drawSprite(entity_togui.state[i].pos,RD_GUI(entity_togui.state[i].size),texture16Render(entity_togui.state[i].item.type+ITEM_SPRITE_OFFSET));
+		ENTITYTOGUI entity = entity_togui.state[i];
+		VEC2 t_pos = texture16Render(inventory.item_all[entity.inventory_slot].type+ITEM_SPRITE_OFFSET);
+		drawSprite(entity.pos,RD_GUI(entity.size),t_pos);
 	}
 
 	memset(vramf,0,sizeof(VEC3)*camera.zoom*camera.zoom);

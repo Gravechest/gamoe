@@ -3,6 +3,9 @@
 #include "vec2.h"
 #include "opengl.h"
 
+#define COLOR_WHITE (VEC3){1.0f,1.0f,1.0f}
+#define COLOR_GREY (VEC3){0.5f,0.5f,0.5f}
+
 #define GUI_BEGIN_X 0.125f
 
 #define GUI_SECUNDARY_COLOR (VEC3){0.6f,0.6f,0.2f}

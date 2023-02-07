@@ -17,6 +17,7 @@
 #include "gui.h"
 #include "construction.h"
 #include "entity_block.h"
+#include "crafting.h"
 
 i4 proc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
 
@@ -35,7 +36,9 @@ IVEC2 client_resolution;
 
 VEC3* vramf;
 RGB*  vram;
-MAP map;
+MAP map = {
+	.unopenable[CONSTRUCTION_LAMP] = TRUE
+};
 
 CAMERA camera = {CHUNK_SIZE,CHUNK_SIZE,CHUNK_SIZE};
 CAMERA camera_new = {CHUNK_SIZE,CHUNK_SIZE,CHUNK_SIZE};
@@ -153,73 +156,6 @@ u1 pointAABBcollision(VEC2 point,VEC2 aabb,VEC2 size){
 	return FALSE;
 }
 
-void tileConstruct(IVEC2 map_crd){
-	u4 t_map_loc = coordToMap(map_crd.x,map_crd.y);
-	if(map.type[t_map_loc] != BLOCK_AIR || map.type[t_map_loc+1] != BLOCK_AIR ||
-	map.type[t_map_loc+SIM_SIZE] != BLOCK_AIR || map.type[t_map_loc+SIM_SIZE+1] != BLOCK_AIR) return;
-
-	u4 t_tile_loc = coordToTileTexture(map_crd.y,map_crd.x);
-	map.type[t_map_loc] = BLOCK_BUILDING_ENTITY;
-	map.type[t_map_loc+1] = BLOCK_BUILDING;
-	map.type[t_map_loc+SIM_SIZE] = BLOCK_BUILDING;
-	map.type[t_map_loc+SIM_SIZE+1] = BLOCK_BUILDING;
-	map.data[t_map_loc].sub_type = construction.type;
-	map.data[t_map_loc+1].sub_type = construction.type;
-	map.data[t_map_loc+SIM_SIZE].sub_type = construction.type;
-	map.data[t_map_loc+SIM_SIZE+1].sub_type = construction.type;
-	u4 building_offset;
-	if(construction.size==1) building_offset = construction.type*4+BUILDING_TEXTURE_SIZE*16;
-	else                     building_offset = construction.type*8;
-	
-	for(u4 x = 0;x < 8;x++){
-		for(u4 y = 0;y < 8;y++){
-			tile_texture_data[x*SIM_SIZE*TILE_TEXTURE_SIZE+y+t_tile_loc] = building_texture[building_offset+x*BUILDING_TEXTURE_SIZE+y];
-		}
-	}
-	gl_queue.message[gl_queue.cnt++].id = GLMESSAGE_WHOLE_TILEEDIT;
-
-	switch(construction.type){
-	case CONSTRUCTION_LAMP:
-		inventoryRemoveM(RECIPY_LAMP);
-		break;
-	case CONSTRUCTION_BLOCKSTATION:
-		inventoryRemoveM(RECIPY_BLOCKSTATION);
-		break;
-	case CONSTRUCTION_CRAFTINGSTATION:
-		inventoryRemoveM(RECIPY_CRAFTINGSTATION);
-		break;
-	}
-	entity_block.state[entity_block.cnt++].pos = map_crd;
-	menu_select = MENU_GAME;
-}
-
-void constructStonewall(IVEC2 map_crd){
-	u4 t_map_loc = coordToMap(map_crd.x,map_crd.y);
-	map.type[t_map_loc] = BLOCK_NORMAL;
-	map.data[t_map_loc].health = 0xff;
-	gl_queue.message[gl_queue.cnt].pos = (IVEC2){map_crd.x,map_crd.y};
-	gl_queue.message[gl_queue.cnt++].id = GLMESSAGE_WHOLE_MAPEDIT;
-}
-
-u1 craftButton(VEC2 pos,VEC2 button_pos,u1* item){
-	//check if you have the items
-	for(i4 i = 0;;i++){
-		if(!--inventory.item_count[item[i]]){
-			for(;i >= 0;i--) inventory.item_count[item[i]]++;
-			return FALSE;
-		}
-		if(!item[i]){
-			for(--i;i >= 0;i--) inventory.item_count[item[i]]++;
-			break;
-		}
-	}
-
-	if(pointAABBcollision(pos,button_pos,GUI_BIGBUTTON_SIZE)){
-		return TRUE;
-	}
-	return FALSE;
-}
-
 i4 proc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam){
 	switch(msg){
 	case WM_SIZE:
@@ -236,12 +172,12 @@ i4 proc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam){
 			switch(wParam){
 			case VK_RETURN:
 				if(!memcmp("GIVE",console_input.data,4)){
-					if(!memcmp("TORCH",console_input.data+5,5)) inventoryAdd(ITEM_TORCH);
-					if(!memcmp("LOG"  ,console_input.data+5,3)) inventoryAdd(ITEM_LOG);
-					if(!memcmp("STONEDUST",console_input.data+5,9)) inventoryAdd(ITEM_STONEDUST);
-					if(!memcmp("BOMB",console_input.data+5,4)) inventoryAdd(ITEM_BOMB);
-					if(!memcmp("PICKAXE",console_input.data+5,7)) inventoryAdd(ITEM_PICKAXE);
-					if(!memcmp("MELEE",console_input.data+5,5)) inventoryAdd(ITEM_MELEE);
+					if(!memcmp("TORCH",console_input.data+5,5)) inventoryAddItem(ITEM_TORCH);
+					if(!memcmp("LOG"  ,console_input.data+5,3)) inventoryAddItem(ITEM_LOG);
+					if(!memcmp("STONEDUST",console_input.data+5,9)) inventoryAddItem(ITEM_STONEDUST);
+					if(!memcmp("BOMB",console_input.data+5,4)) inventoryAddItem(ITEM_BOMB);
+					if(!memcmp("PICKAXE",console_input.data+5,7)) inventoryAddItem(ITEM_PICKAXE);
+					if(!memcmp("MELEE",console_input.data+5,5)) inventoryAddItem(ITEM_MELEE);
 				}
 				break;
 			case VK_SPACE:
@@ -259,19 +195,15 @@ i4 proc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam){
 			break;
 		case VK_E:
 			for(u4 i = 0;i < entity_block.cnt;i++){
-				u4 m_loc = coordToMap(entity_block.state[i].pos.x,entity_block.state[i].pos.y);
+				BLOCKENTITY entity = entity_block.state[i];
+				u4 m_loc = coordToMap(entity.pos.x,entity.pos.y);
 				if(map.type[m_loc]==BLOCK_BUILDING_ENTITY){
-					VEC2 b_pos = (VEC2){(f4)entity_block.state[i].pos.x+0.5f,(f4)entity_block.state[i].pos.y+0.5f};
-					if(VEC2distance(b_pos,player.pos) < BLOCKCRAFT_RANGE){
-						switch(map.data[m_loc].sub_type){
-						case CONSTRUCTION_BLOCKSTATION:
-							menu_select = MENU_CRAFTING_BLOCK;
-							break;
-						case CONSTRUCTION_CRAFTINGSTATION:
-							menu_select = MENU_CRAFTING_BUILDING;
-							break;
+					VEC2 b_pos = (VEC2){(f4)entity.pos.x+0.5f,(f4)entity.pos.y+0.5f};
+					if(!map.unopenable[map.data[m_loc].sub_type]){
+						if(VEC2distance(b_pos,player.pos) < BLOCKCRAFT_RANGE){
+							menu_select = map.data[m_loc].sub_type + MENU_BUILDING_OFFSET;
+							entity_block_global.select = (IVEC2){entity.pos.x,entity.pos.y};
 						}
-
 					}
 				}
 			}
@@ -299,27 +231,14 @@ i4 proc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam){
 			VEC2 cursor = getCursorPosGUI();
 			if(cursor.x < GUI_BEGIN_X){
 				itemEntitySpawn(player.pos,VEC2divR(VEC2normalizeR(playerLookDirection()),3.0f),inventory.cursor.item.item);
+				inventory.item_ammount[inventory.cursor.item.type]--;
 				inventory.cursor.item.type = ITEM_NOTHING;
 			}
-			if(pointAABBcollision(cursor,GUI_PRIMARY,RD_GUI(GUI_ITEM_SIZE))){
-				if(inventory.item_primary.type) inventory.item_all[inventory.cursor.preslot] = inventory.item_primary;
-				inventory.item_primary = inventory.cursor.item;
-				inventory.cursor.item.type = ITEM_NOTHING;
-				inventory.item_primary.visible = TRUE;
-			}
-			else if(pointAABBcollision(cursor,GUI_SECUNDARY,RD_GUI(GUI_ITEM_SIZE))){
-				if(inventory.item_secundary.type) inventory.item_all[inventory.cursor.preslot] = inventory.item_secundary;
-				inventory.item_secundary = inventory.cursor.item;
-				inventory.cursor.item.type = ITEM_NOTHING;
-				inventory.item_secundary.visible = TRUE;
-			}
-			for(u4 i = 0;i < 9;i++){
-				VEC2 pos = VEC2addVEC2R(VEC2mulVEC2R((VEC2){i/3,i%3},GUI_INVENTORY_SLOT_OFFSET),GUI_INVENTORY);
-				if(pointAABBcollision(cursor,pos,RD_GUI(GUI_ITEM_SIZE))){
-					if(inventory.item[i].type) inventory.item_all[inventory.cursor.preslot] = inventory.item[i];
-					inventory.item[i] = inventory.cursor.item;
+			for(u4 i = 0;i < INVENTORY_SLOT_AMM;i++){
+				if(pointAABBcollision(cursor,getInventoryPos(i),RD_GUI(GUI_ITEM_SIZE))){
+					inventory.item_all[i] = inventory.cursor.item;
 					inventory.cursor.item.type = ITEM_NOTHING;
-					inventory.item[i].visible = TRUE;
+					inventory.item_all[i].visible = TRUE;
 				}
 			}
 			if(inventory.cursor.item.type){
@@ -347,9 +266,13 @@ i4 proc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam){
 	case WM_LBUTTONDOWN:{
 		VEC2 cursor = getCursorPosGUI();
 		switch(menu_select){
-		case MENU_CRAFTING_BLOCK:
+		case MENU_BUILDING_OFFSET+CONSTRUCTION_BLOCKSTATION:
 			if (craftButton(cursor,GUI_CRAFT1,RECIPY_STONEWALL)) Construction(CONSTRUCTION_STONEWALL,1);
 			if (craftButton(cursor,GUI_CRAFT2,RECIPY_LAMP))      Construction(CONSTRUCTION_LAMP,1);
+			break;
+		case MENU_BUILDING_OFFSET+CONSTRUCTION_CRAFTINGSTATION:
+			if (craftButton(cursor,GUI_CRAFT1,RECIPY_BLOCKSTATION)) Construction(CONSTRUCTION_BLOCKSTATION,2);
+			if (craftButton(cursor,GUI_CRAFT2,RECIPY_CHEST)) Construction(CONSTRUCTION_CHEST,2);
 			break;
 		case MENU_CONSTRUCT:
 			cursor = VEC2addVEC2R(getCursorPosMap(),camera.pos);
@@ -364,39 +287,17 @@ i4 proc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam){
 				break;
 			}
 			break;
-		case MENU_CRAFTING_BUILDING:
-			if (craftButton(cursor,GUI_CRAFT1,RECIPY_BLOCKSTATION)) Construction(CONSTRUCTION_BLOCKSTATION,2);
-			break;
 		case MENU_CRAFTING_SIMPLE:
 			if (craftButton(cursor,GUI_CRAFT1,RECIPY_CRAFTINGSTATION)) Construction(CONSTRUCTION_CRAFTINGSTATION,2);
-			else if(craftButton(cursor,GUI_CRAFT2,RECIPY_TORCH)){
-				i4 slot = inventoryEmptySlot();
-				if(slot!=-1){
-					entityToGuiSpawn(cursor,getInventoryPos(slot),RD_CONVERT(6.0f),slot,(ITEM){ITEM_TORCH,0xff});
-				}
-			}
+			else if(craftButton(cursor,GUI_CRAFT2,RECIPY_TORCH)) craftItem(ITEM_TORCH,cursor);
 			break;
 		case MENU_GAME:
 			if(cursor.x < 0.125f) playerAttack(PLAYERATTACK_PRIMARY);
-			else if(pointAABBcollision(cursor,GUI_SECUNDARY,RD_GUI(GUI_ITEM_SIZE))){
-				inventory.cursor.item = inventory.item_secundary;
-				inventory.cursor.preslot = INVENTORY_SECUNDARY;
-				inventory.item_secundary.type = ITEM_NOTHING;
-			}
-			else if(pointAABBcollision(cursor,GUI_PRIMARY,RD_GUI(GUI_ITEM_SIZE))){
-				inventory.cursor.item = inventory.item_primary;
-				inventory.cursor.preslot = INVENTORY_PRIMARY;
-				inventory.item_primary.type = ITEM_NOTHING;
-			}
-			else{
-				for(u4 i = 0;i < 9;i++){
-					VEC2 pos = VEC2addVEC2R(VEC2mulVEC2R((VEC2){i/3,i%3},GUI_INVENTORY_SLOT_OFFSET),GUI_INVENTORY);
-					if(pointAABBcollision(cursor,pos,RD_GUI(GUI_ITEM_SIZE))){
-						inventory.cursor.item = inventory.item[i];
-						inventory.cursor.preslot = i+1;
-						inventory.item[i].type = ITEM_NOTHING;
-						break;
-					}
+			for(u4 i = 0;i < INVENTORY_SLOT_AMM;i++){
+				if(pointAABBcollision(cursor,getInventoryPos(i),RD_GUI(GUI_ITEM_SIZE))){
+					inventory.cursor.item = inventory.item_all[i];
+					inventory.cursor.preslot = i;
+					inventory.item_all[i].type = ITEM_NOTHING;
 				}
 			}
 			if(pointAABBcollision(cursor,GUI_SETTINGS,GUI_BUTTON_SIZE)) menu_select = MENU_SETTING;
@@ -491,6 +392,7 @@ void main(){
 	entity_item.state = HeapAlloc(GetProcessHeap(),0,sizeof(ITEM_ENTITY)*1024);
 	entity_light.state = HeapAlloc(GetProcessHeap(),0,sizeof(PARTICLE)*1024);
 	entity_block.state = HeapAlloc(GetProcessHeap(),0,sizeof(BLOCKENTITY)*1024);
+	entity_block_global.state = HeapAlloc(GetProcessHeap(),0,sizeof(BLOCKENTITYGLOBAL)*1024);
 	entity_togui.state = HeapAlloc(GetProcessHeap(),0,sizeof(ENTITYTOGUI)*1024);
 	tile_texture_data = HeapAlloc(GetProcessHeap(),0,sizeof(RGB)*TILE_TEXTURE_SURFACE*SIM_AREA);
 	texture16 = HeapAlloc(GetProcessHeap(),HEAP_ZERO_MEMORY,sizeof(RGB)*TEXTURE16_ROW_SIZE*TEXTURE16_ROW_SIZE);

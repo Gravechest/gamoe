@@ -8,21 +8,22 @@
 #include "inventory.h"
 #include "entity_block.h"
 #include "construction.h"
+#include "crafting.h"
 
 STRING console_input;
 
 void GUIframe(VEC2 pos,VEC2 size){
-	drawRect((VEC2){pos.x,pos.y+size.y},(VEC2){size.x+0.003f,0.005f},(VEC3){0.5f,0.5f,0.5f});
-	drawRect((VEC2){pos.x,pos.y-size.y},(VEC2){size.x+0.003f,0.005f},(VEC3){0.5f,0.5f,0.5f});
-	drawRect((VEC2){pos.x+size.x,pos.y},(VEC2){0.003f,size.y+0.005f},(VEC3){0.5f,0.5f,0.5f});
-	drawRect((VEC2){pos.x-size.x,pos.y},(VEC2){0.003f,size.y+0.005f},(VEC3){0.5f,0.5f,0.5f});
+	drawRect((VEC2){pos.x,pos.y+size.y},(VEC2){size.x+0.003f,0.005f},COLOR_GREY);
+	drawRect((VEC2){pos.x,pos.y-size.y},(VEC2){size.x+0.003f,0.005f},COLOR_GREY);
+	drawRect((VEC2){pos.x+size.x,pos.y},(VEC2){0.003f,size.y+0.005f},COLOR_GREY);
+	drawRect((VEC2){pos.x-size.x,pos.y},(VEC2){0.003f,size.y+0.005f},COLOR_GREY);
 }
 
 void GUIlootBoxEdge(VEC2 pos){
-	drawRect((VEC2){pos.x+0.36f,pos.y+0.04f},(VEC2){0.2f,0.005f},(VEC3){0.5f,0.5f,0.5f});
-	drawRect((VEC2){pos.x+0.36f,pos.y-0.04f},(VEC2){0.2f,0.005f},(VEC3){0.5f,0.5f,0.5f});
-	drawRect((VEC2){pos.x+0.158f,pos.y},(VEC2){0.003f,0.045f},(VEC3){0.5f,0.5f,0.5f});
-	drawRect((VEC2){pos.x+0.563f,pos.y},(VEC2){0.003f,0.045f},(VEC3){0.5f,0.5f,0.5f});
+	drawRect((VEC2){pos.x+0.36f,pos.y+0.04f},(VEC2){0.2f,0.005f},COLOR_GREY);
+	drawRect((VEC2){pos.x+0.36f,pos.y-0.04f},(VEC2){0.2f,0.005f},COLOR_GREY);
+	drawRect((VEC2){pos.x+0.158f,pos.y},(VEC2){0.003f,0.045f},COLOR_GREY);
+	drawRect((VEC2){pos.x+0.563f,pos.y},(VEC2){0.003f,0.045f},COLOR_GREY);
 }
 
 void GUIcraftingRecipe(VEC2 pos){
@@ -39,14 +40,14 @@ void GUIcraftingRecipeItem(VEC2 pos,u1* item){
 			for(--i;i >= 0;i--){
 				VEC2 t_pos = TEXTURE16_RENDER(ITEM_SPRITE_OFFSET+item[i]);
 				if(item_exist[i]){
-					drawEnemy((VEC2){pos.x+0.3f+0.1f*i,pos.y},RD_GUI(6.0f),t_pos,(VEC3){1.0f,1.0f,1.0f});
-					inventory.item_count[item[i]]++;
+					drawEnemy((VEC2){pos.x+0.3f+0.1f*i,pos.y},RD_GUI(6.0f),t_pos,COLOR_WHITE);
+					inventory.item_ammount[item[i]]++;
 				}
-				else drawEnemy((VEC2){pos.x+0.3f+0.1f*i,pos.y},RD_GUI(6.0f),t_pos,(VEC3){0.5f,0.5f,0.5f});
+				else drawEnemy((VEC2){pos.x+0.3f+0.1f*i,pos.y},RD_GUI(6.0f),t_pos,COLOR_GREY);
 			}
 			break;
 		}
-		item_exist[i] = inventory.item_count[item[i]] ? inventory.item_count[item[i]]-- : 0;
+		item_exist[i] = inventory.item_ammount[item[i]] ? inventory.item_ammount[item[i]]-- : 0;
 	}
 }
 
@@ -110,6 +111,15 @@ void GUIcraftFrame(){
 }
 
 void GUIdraw(){
+	for(u4 i = 0;i < INVENTORY_SLOT_AMM;i++){
+		ITEM item = inventory.item_all[i].item;
+		if(inventory.stackable[item.type] && item.ammount != 1){
+			u1 amm[4] = {[3] = 0};
+			VEC2 d_pos = getInventoryPos(i);
+			sprintf(&amm,"%i",item.ammount);
+			drawString(VEC2subVEC2R(d_pos,(VEC2){0.02f,-0.03f}),RD_GUI(2.0f),amm);
+		}
+	}
 	drawString((VEC2){GUI_CRAFTING.x-0.07f,GUI_CRAFTING.y},RD_GUI(2.5f),"crafting");
 	drawString((VEC2){GUI_SETTINGS.x-0.07f,GUI_SETTINGS.y},RD_GUI(2.5f),"settings");
 	drawString(GUI_ENERGY,RD_GUI(2.5f),"energy=");
@@ -124,16 +134,12 @@ void GUIdraw(){
 	drawString((VEC2){GUI_SCRAP.x+0.18f,GUI_SCRAP.y},RD_GUI(2.5f),str);
 	VEC2 cursor = getCursorPosGUI();
 	switch(menu_select){
-	case MENU_DEBUG:
+	case MENU_BUILDING_OFFSET+CONSTRUCTION_CHEST:
 		glUseProgram(color_shader);
 		GUIframe(VEC2_ZERO,GUI_DEBUG_SIZE);
 		drawRect(VEC2_ZERO,GUI_DEBUG_SIZE,VEC3_ZERO);
-		drawRect((VEC2){-GUI_DEBUG_SIZE.x+0.03f+0.02f*console_input.cnt,-0.065f},(VEC2){0.008f,0.0075f},(VEC3){1.0f,1.0f,1.0f});
-		glUseProgram(font_shader);
-		drawString((VEC2){-GUI_DEBUG_SIZE.x+0.03f,0.05f},RD_GUI(2.5f),"debug console");
-		drawString((VEC2){-GUI_DEBUG_SIZE.x+0.03f,-0.05f},RD_GUI(2.5f),console_input.data);
 		break;
-	case MENU_CRAFTING_BLOCK:
+	case MENU_BUILDING_OFFSET+CONSTRUCTION_BLOCKSTATION:
 		glUseProgram(color_shader);
 		GUIcraftFrame();
 		glUseProgram(entity_dark_shader);
@@ -144,14 +150,25 @@ void GUIdraw(){
 		drawString((VEC2){GUI_CRAFT2.x-0.03f,GUI_CRAFT2.y},RD_GUI(2.5f),"lamp");
 		cursorDraw(cursor);
 		break;
-	case MENU_CRAFTING_BUILDING:
+	case MENU_BUILDING_OFFSET+CONSTRUCTION_CRAFTINGSTATION:
 		glUseProgram(color_shader);
 		GUIcraftFrame();
 		glUseProgram(entity_dark_shader);
 		GUIcraftingRecipeItem(GUI_CRAFT1,RECIPY_BLOCKSTATION);
+		GUIcraftingRecipeItem(GUI_CRAFT2,RECIPY_CHEST);
 		glUseProgram(font_shader);
 		drawString((VEC2){GUI_CRAFT1.x-0.12f,GUI_CRAFT1.y},RD_GUI(2.5f),"block-station");
+		drawString((VEC2){GUI_CRAFT2.x-0.07f,GUI_CRAFT2.y},RD_GUI(2.5f),"chest");
 		cursorDraw(cursor);
+		break;
+	case MENU_DEBUG:
+		glUseProgram(color_shader);
+		GUIframe(VEC2_ZERO,GUI_DEBUG_SIZE);
+		drawRect(VEC2_ZERO,GUI_DEBUG_SIZE,VEC3_ZERO);
+		drawRect((VEC2){-GUI_DEBUG_SIZE.x+0.03f+0.02f*console_input.cnt,-0.065f},(VEC2){0.008f,0.0075f},(VEC3){1.0f,1.0f,1.0f});
+		glUseProgram(font_shader);
+		drawString((VEC2){-GUI_DEBUG_SIZE.x+0.03f,0.05f},RD_GUI(2.5f),"debug console");
+		drawString((VEC2){-GUI_DEBUG_SIZE.x+0.03f,-0.05f},RD_GUI(2.5f),console_input.data);
 		break;
 	case MENU_GAME:
 		for(u4 i = 0;i < entity_block.cnt;i++){

@@ -19,6 +19,6 @@ typedef struct{
 }ENTITYTOGUIHUB;
 
 void entityToGuiTick();
-void entityToGuiSpawn(VEC2 pos,VEC2 dst,f4 size,u4 slot,ITEM type);
+void entityToGuiSpawn(VEC2 pos,VEC2 dst,f4 size,u4 slot);
 
 extern ENTITYTOGUIHUB entity_togui;
