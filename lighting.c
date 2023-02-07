@@ -9,6 +9,8 @@
 #include "player.h"
 #include "entity_light.h"
 #include "inventory.h"
+#include "entity_block.h"
+#include "construction.h"
 
 u4 entity_shadows_cnt;
 IVEC2 entity_shadows[255];
@@ -105,6 +107,34 @@ void lightsourceEmit(VEC3 color,VEC2 pos,u4 ammount){
 	}
 }
 
+void lightsourceBlockEmit(VEC3 color,VEC2 pos,u4 ammount){
+	VEC2subVEC2(&pos,(VEC2){(u4)camera.pos.x,(u4)camera.pos.y});
+	f4 offset = tRnd();
+	if(pos.x < 1.0f || pos.y < 1.0f || pos.x > camera.zoom || pos.y > camera.zoom){
+		for(f4 i = offset;i < 1.0f+offset;i+=1.0f/ammount){
+			VEC2 direction = (VEC2){cosf(i*PI*2.0f),sinf(i*PI*2.0f)};
+			if(rayIntersectSquare(pos,direction,(VEC2){camera.zoom/2.0f,camera.zoom/2.0f},(f4)camera.zoom/2.0f) != -1.0f){
+				RAY2D ray = ray2dCreate(pos,direction);
+				ray2dIterate(&ray);
+				while((ray.square_pos.x < 0 || ray.square_pos.x >= camera.zoom || ray.square_pos.y < 0 || ray.square_pos.y >= camera.zoom)){
+					IVEC2 block = {(ray.square_pos.x+(u4)camera.pos.x),(ray.square_pos.y+(u4)camera.pos.y)};
+					if(block.x>SIM_SIZE||block.y>SIM_SIZE||block.x<0||block.y<0||map.type[coordToMap(block.x,block.y)]==BLOCK_NORMAL) break;
+					ray2dIterate(&ray);
+				}
+				mapIlluminate(ray,color);
+			}
+			illuminateOutside(color,pos,i);
+		}
+	}
+	else{
+		for(f4 i = offset;i < 1.0f+offset;i+=1.0f/ammount){
+			RAY2D ray = ray2dCreate(pos,(VEC2){cosf(i*PI*2.0f),sinf(i*PI*2.0f)});
+			ray2dIterate(&ray);
+			mapIlluminate(ray,color);
+		}	
+	}
+}
+
 void lighting(){
 	entity_shadows_cnt = 0;
 	for(u4 i = 0;i < entity_item.cnt;i++){
@@ -127,6 +157,13 @@ void lighting(){
 					entity_shadows[entity_shadows_cnt++] = (IVEC2){x,y};
 				}
 			}
+		}
+	}
+	for(u4 i = 0;i < entity_block.cnt;i++){
+		u4 m_loc = coordToMap(entity_block.state[i].pos.x,entity_block.state[i].pos.y);
+		if(map.data[m_loc].sub_type == CONSTRUCTION_LAMP){
+			VEC2 l_pos = {entity_block.state[i].pos.x+0.5f,entity_block.state[i].pos.y+0.5f};
+			lightsourceBlockEmit((VEC3){1.0f,1.0f,1.0f},l_pos,1024);
 		}
 	}
 	for(u4 i = 0;i < entity_light.cnt;i++){

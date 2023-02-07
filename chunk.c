@@ -45,7 +45,7 @@ u4 posToTileTexture(VEC2 pos){
 }
 
 void tileTextureGen(VEC2 red,VEC2 green,VEC2 blue,u4 m_loc){
-	u4 t_loc =  mapToTileTexture(m_loc);
+	u4 t_loc = mapToTileTexture(m_loc);
 	for(u4 i = t_loc;i < t_loc+TILE_TEXTURE_SURFACE*SIM_SIZE;i+=SIM_SIZE*TILE_TEXTURE_SIZE){
 		for(u4 j = i;j < i+TILE_TEXTURE_SIZE;j++){
 			f4 r = tRnd();
@@ -109,8 +109,8 @@ void storeChunk(IVEC2 crd){
 	union icrd{
 		IVEC2 crd;
 		u8 id;
-	}icrd;
-	icrd.crd = crd;
+	}
+	icrd = {crd};
 	u4 offset = (crd.x-current_chunk.x+1)*CHUNK_SIZE+(crd.y-current_chunk.y+1)*SIM_SIZE*CHUNK_SIZE;
 	u4 offset_tile = (crd.x-current_chunk.x+1)*CHUNK_SIZE*TILE_TEXTURE_SIZE+(crd.y-current_chunk.y+1)*SIM_SIZE*CHUNK_SIZE*TILE_TEXTURE_SIZE;
 	i4 chunkID = findChunk(crd);
@@ -212,7 +212,7 @@ void worldLoadSpawn(){
 			map.type[coordToMap(x,y)] = BLOCK_AIR;
 		}
 	}
-	for(u4 i = 0;i < SIM_SIZE_SURFACE;i++){
+	for(u4 i = 0;i < SIM_AREA;i++){
 		switch(map.type[i]){
 		case BLOCK_SPRINKLER:
 			entity_block.state[entity_block.cnt].pos = (IVEC2){i/SIM_SIZE,i%SIM_SIZE};

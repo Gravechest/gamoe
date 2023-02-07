@@ -2,8 +2,6 @@
 
 #include "small_types.h"
 
-
-
 enum{
 	//2X2
 	CONSTRUCTION_CRAFTINGSTATION,

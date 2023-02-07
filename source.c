@@ -203,7 +203,7 @@ void constructStonewall(IVEC2 map_crd){
 
 u1 craftButton(VEC2 pos,VEC2 button_pos,u1* item){
 	//check if you have the items
-	for(u4 i = 0;;i++){
+	for(i4 i = 0;;i++){
 		if(!--inventory.item_count[item[i]]){
 			for(;i >= 0;i--) inventory.item_count[item[i]]++;
 			return FALSE;
@@ -482,8 +482,8 @@ void main(){
 	console_input.data = HeapAlloc(GetProcessHeap(),HEAP_ZERO_MEMORY,CONSOLE_INPUT_SIZE);
 	vram   = HeapAlloc(GetProcessHeap(),HEAP_ZERO_MEMORY,sizeof(RGB)*CHUNK_SURFACE);
 	vramf  = HeapAlloc(GetProcessHeap(),HEAP_ZERO_MEMORY,sizeof(VEC3)*CHUNK_SURFACE);
-	map.type = HeapAlloc(GetProcessHeap(),HEAP_ZERO_MEMORY,SIM_SIZE_SURFACE);
-	map.data = HeapAlloc(GetProcessHeap(),HEAP_ZERO_MEMORY,SIM_SIZE_SURFACE*sizeof(MAPDATA));
+	map.type = HeapAlloc(GetProcessHeap(),HEAP_ZERO_MEMORY,SIM_AREA);
+	map.data = HeapAlloc(GetProcessHeap(),HEAP_ZERO_MEMORY,SIM_AREA*sizeof(MAPDATA));
 	gl_queue.message = HeapAlloc(GetProcessHeap(),0,sizeof(OPENGLMESSAGE)*1024);
 	entity_dark.state  = HeapAlloc(GetProcessHeap(),0,sizeof(ENEMY)*1024);
 	chunk.state  = HeapAlloc(GetProcessHeap(),0,sizeof(CHUNK)*1024);
@@ -492,7 +492,7 @@ void main(){
 	entity_light.state = HeapAlloc(GetProcessHeap(),0,sizeof(PARTICLE)*1024);
 	entity_block.state = HeapAlloc(GetProcessHeap(),0,sizeof(BLOCKENTITY)*1024);
 	entity_togui.state = HeapAlloc(GetProcessHeap(),0,sizeof(ENTITYTOGUI)*1024);
-	tile_texture_data = HeapAlloc(GetProcessHeap(),0,sizeof(RGB)*TILE_TEXTURE_SURFACE*SIM_SIZE_SURFACE);
+	tile_texture_data = HeapAlloc(GetProcessHeap(),0,sizeof(RGB)*TILE_TEXTURE_SURFACE*SIM_AREA);
 	texture16 = HeapAlloc(GetProcessHeap(),HEAP_ZERO_MEMORY,sizeof(RGB)*TEXTURE16_ROW_SIZE*TEXTURE16_ROW_SIZE);
 	wndclass.hInstance = GetModuleHandleA(0);
 	RegisterClassA(&wndclass);

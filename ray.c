@@ -65,16 +65,26 @@ void ray2dIterate(RAY2D *ray){
 	}
 }
 
+VEC2 ray2dGetCoordsBlockHit(RAY2D ray){
+	f4 wall;
+	switch(ray.square_side){
+	case SQUARE_SIDE_X:
+		wall = ray.pos.y + (ray.side.x - ray.delta.x) * ray.dir.y;
+		return ray.dir.x > 0.0f ? (VEC2){ray.square_pos.x,wall} : (VEC2){ray.square_pos.x+0.99f,wall};
+	case SQUARE_SIDE_Y:
+		wall = ray.pos.x + (ray.side.y - ray.delta.y) * ray.dir.x;
+		return ray.dir.y > 0.0f ? (VEC2){wall,ray.square_pos.y} : (VEC2){wall,ray.square_pos.y+0.99f};
+	}
+}
+
 VEC2 ray2dGetCoords(RAY2D ray){
 	f4 wall;
 	switch(ray.square_side){
 	case SQUARE_SIDE_X:
 		wall = ray.pos.y + (ray.side.x - ray.delta.x) * ray.dir.y;
-		if(ray.dir.x > 0.0f) return (VEC2){ray.square_pos.x     ,wall};
-		else                 return (VEC2){ray.square_pos.x+1.0f,wall};
+		return ray.dir.x > 0.0f ? (VEC2){ray.square_pos.x,wall} : (VEC2){ray.square_pos.x+1.0f,wall};
 	case SQUARE_SIDE_Y:
 		wall = ray.pos.x + (ray.side.y - ray.delta.y) * ray.dir.x;
-		if(ray.dir.y > 0.0f) return (VEC2){wall,ray.square_pos.y     };
-		else                 return (VEC2){wall,ray.square_pos.y+1.0f};
+		return ray.dir.y > 0.0f ? (VEC2){wall,ray.square_pos.y} : (VEC2){wall,ray.square_pos.y+1.0f};
 	}
 }

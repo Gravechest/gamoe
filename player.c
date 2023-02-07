@@ -38,8 +38,8 @@ void playerAttack(u1 hand){
 			entity_light.state[entity_light.cnt].size = 0.4f;
 			entity_light.state[entity_light.cnt].health = 180;
 			entity_light.state[entity_light.cnt++].vel = VEC2divR(playerLookDirection(),24.0f);
-			inventory.item_primary.type = ITEM_NOTHING;
-			inventory.item_count[ITEM_BOMB]--;
+			//inventory.item_primary.type = ITEM_NOTHING;
+			//inventory.item_count[ITEM_BOMB]--;
 			break;
 		case ITEM_MELEE:
 			player.melee_progress = PLAYER_MELEE_ATTACKDURATION;
@@ -151,21 +151,21 @@ u4 blockHitParticle(VEC2 hit_pos,u4 m_pos,u4 damage){
 }
 
 u4 blockHit(VEC2 hit_pos,u4 m_pos,u4 damage){
+	if(map.data[m_pos].health < damage){
+		map.type[m_pos] = BLOCK_AIR;
+		tileTextureGen((VEC2){2.0f,64.0f},(VEC2){2.0f,64.0f},(VEC2){2.0f,64.0f},m_pos);
+		gl_queue.message[gl_queue.cnt].id = GLMESSAGE_SINGLE_MAPEDIT;
+		gl_queue.message[gl_queue.cnt++].pos = (IVEC2){hit_pos.x,hit_pos.y};
+		gl_queue.message[gl_queue.cnt].id = GLMESSAGE_BLOCK_TILEEDIT;
+		gl_queue.message[gl_queue.cnt++].pos = (IVEC2){m_pos/SIM_SIZE,m_pos%SIM_SIZE};
+		return BLOCKHIT_DESTROY;
+	}
 	IVEC2 tile_crd = posToTileTextureCoord(hit_pos);
 	u4 tile_pos = coordTileTextureToTileTexture(tile_crd.x,tile_crd.y);
 	tile_texture_data[tile_pos].r >>= 1;
 	tile_texture_data[tile_pos].g >>= 1;
 	tile_texture_data[tile_pos].b >>= 1;
-	if(map.data[m_pos].health < damage){
-		map.type[m_pos] = BLOCK_AIR;
-		gl_queue.message[gl_queue.cnt].id = GLMESSAGE_SINGLE_MAPEDIT;
-		gl_queue.message[gl_queue.cnt++].pos = (IVEC2){hit_pos.x,hit_pos.y};
-		tileTextureGen((VEC2){2.0f,64.0f},(VEC2){2.0f,64.0f},(VEC2){2.0f,64.0f},m_pos);
-		gl_queue.message[gl_queue.cnt].id = GLMESSAGE_WHOLE_TILEEDIT;
-		gl_queue.message[gl_queue.cnt++].pos = (IVEC2){m_pos/SIM_SIZE,m_pos%SIM_SIZE};
-		return BLOCKHIT_DESTROY;
-	}
-	else map.data[m_pos].health -= damage;
+	map.data[m_pos].health -= damage;
 	player.melee_progress = 0;
 	gl_queue.message[gl_queue.cnt].id = GLMESSAGE_SINGLE_TILEEDIT;
 	gl_queue.message[gl_queue.cnt++].pos = (IVEC2){tile_crd.x,tile_crd.y};

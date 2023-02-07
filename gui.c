@@ -34,37 +34,20 @@ void GUIcraftingRecipe(VEC2 pos){
 
 void GUIcraftingRecipeItem(VEC2 pos,u1* item){
 	u1 item_exist[16];
-	for(u4 i = 0;;i++){
-		item_exist[i] = inventory.item_count[item[i]] ? inventory.item_count[item[i]]-- : 0;
+	for(i4 i = 0;;i++){
 		if(!item[i]){
 			for(--i;i >= 0;i--){
+				VEC2 t_pos = TEXTURE16_RENDER(ITEM_SPRITE_OFFSET+item[i]);
 				if(item_exist[i]){
-					drawEnemy((VEC2){pos.x+0.3f+0.1f*i,pos.y},RD_GUI(6.0f),TEXTURE16_RENDER(ITEM_SPRITE_OFFSET+item1),(VEC3){1.0f,1.0f,1.0f});
-					inventory.item_count[item1]++;
+					drawEnemy((VEC2){pos.x+0.3f+0.1f*i,pos.y},RD_GUI(6.0f),t_pos,(VEC3){1.0f,1.0f,1.0f});
+					inventory.item_count[item[i]]++;
 				}
-				else drawEnemy((VEC2){pos.x+0.3f+0.1f*i,pos.y},RD_GUI(6.0f),TEXTURE16_RENDER(ITEM_SPRITE_OFFSET+item2),(VEC3){0.5f,0.5f,0.5f});
+				else drawEnemy((VEC2){pos.x+0.3f+0.1f*i,pos.y},RD_GUI(6.0f),t_pos,(VEC3){0.5f,0.5f,0.5f});
 			}
+			break;
 		}
+		item_exist[i] = inventory.item_count[item[i]] ? inventory.item_count[item[i]]-- : 0;
 	}
-	if(item1_exist){
-
-	}
-	else drawEnemy((VEC2){pos.x+0.3f,pos.y},RD_GUI(6.0f),TEXTURE16_RENDER(ITEM_SPRITE_OFFSET+item1),(VEC3){0.5f,0.5f,0.5f});
-	if(item2_exist){
-		drawEnemy((VEC2){pos.x+0.4f,pos.y},RD_GUI(6.0f),TEXTURE16_RENDER(ITEM_SPRITE_OFFSET+item2),(VEC3){1.0f,1.0f,1.0f});
-		inventory.item_count[item2]++;
-	}
-	else drawEnemy((VEC2){pos.x+0.4f,pos.y},RD_GUI(6.0f),TEXTURE16_RENDER(ITEM_SPRITE_OFFSET+item2),(VEC3){0.5f,0.5f,0.5f});
-	if(item3_exist){
-		drawEnemy((VEC2){pos.x+0.5f,pos.y},RD_GUI(6.0f),TEXTURE16_RENDER(ITEM_SPRITE_OFFSET+item3),(VEC3){1.0f,1.0f,1.0f});
-		inventory.item_count[item3]++;
-	}
-	else drawEnemy((VEC2){pos.x+0.5f,pos.y},RD_GUI(6.0f),TEXTURE16_RENDER(ITEM_SPRITE_OFFSET+item3),(VEC3){0.5f,0.5f,0.5f});
-	if(item4_exist){
-		drawEnemy((VEC2){pos.x+0.6f,pos.y},RD_GUI(6.0f),TEXTURE16_RENDER(ITEM_SPRITE_OFFSET+item4),(VEC3){1.0f,1.0f,1.0f});
-		inventory.item_count[item4]++;
-	}
-	else drawEnemy((VEC2){pos.x+0.6f,pos.y},RD_GUI(6.0f),TEXTURE16_RENDER(ITEM_SPRITE_OFFSET+item4),(VEC3){0.5f,0.5f,0.5f});
 }
 
 void GUIdrawInventorySlots(){
@@ -154,8 +137,8 @@ void GUIdraw(){
 		glUseProgram(color_shader);
 		GUIcraftFrame();
 		glUseProgram(entity_dark_shader);
-		GUIcraftingRecipeItem(GUI_CRAFT1,ITEM_STONEDUST,ITEM_STONEDUST,ITEM_STONEDUST,ITEM_STONEDUST);
-		GUIcraftingRecipeItem(GUI_CRAFT2,ITEM_TORCH,ITEM_TORCH,ITEM_TORCH,ITEM_TORCH);
+		GUIcraftingRecipeItem(GUI_CRAFT1,RECIPY_STONEWALL);
+		GUIcraftingRecipeItem(GUI_CRAFT2,RECIPY_LAMP);
 		glUseProgram(font_shader);
 		drawString((VEC2){GUI_CRAFT1.x-0.12f,GUI_CRAFT1.y},RD_GUI(2.5f),"stonewall");
 		drawString((VEC2){GUI_CRAFT2.x-0.03f,GUI_CRAFT2.y},RD_GUI(2.5f),"lamp");
@@ -165,11 +148,9 @@ void GUIdraw(){
 		glUseProgram(color_shader);
 		GUIcraftFrame();
 		glUseProgram(entity_dark_shader);
-		GUIcraftingRecipeItem(GUI_CRAFT1,ITEM_STONEDUST,ITEM_STONEDUST,ITEM_STONEDUST,ITEM_STONEDUST);
-		GUIcraftingRecipeItem(GUI_CRAFT2,ITEM_LOG,ITEM_LOG,ITEM_LOG,ITEM_LOG);
+		GUIcraftingRecipeItem(GUI_CRAFT1,RECIPY_BLOCKSTATION);
 		glUseProgram(font_shader);
 		drawString((VEC2){GUI_CRAFT1.x-0.12f,GUI_CRAFT1.y},RD_GUI(2.5f),"block-station");
-		drawString((VEC2){GUI_CRAFT2.x-0.12f,GUI_CRAFT2.y},RD_GUI(2.5f),"weapon-station");
 		cursorDraw(cursor);
 		break;
 	case MENU_GAME:
@@ -200,15 +181,11 @@ void GUIdraw(){
 		glUseProgram(color_shader);
 		GUIcraftFrame();
 		glUseProgram(entity_dark_shader);
-		GUIcraftingRecipeItem(GUI_CRAFT1,ITEM_STONEDUST,ITEM_STONEDUST,ITEM_STONEDUST,ITEM_STONEDUST);
-		GUIcraftingRecipeItem(GUI_CRAFT2,ITEM_LOG,ITEM_LOG,ITEM_LOG,ITEM_LOG);
-		GUIcraftingRecipeItem(GUI_CRAFT3,ITEM_LOG,ITEM_LOG,ITEM_STONEDUST,ITEM_STONEDUST);
-		GUIcraftingRecipeItem(GUI_CRAFT4,ITEM_LOG,ITEM_LOG,ITEM_LOG,ITEM_STONEDUST);
+		GUIcraftingRecipeItem(GUI_CRAFT1,RECIPY_CRAFTINGSTATION);
+		GUIcraftingRecipeItem(GUI_CRAFT2,RECIPY_TORCH);
 		glUseProgram(font_shader);
 		drawString((VEC2){GUI_CRAFT1.x-0.12f,GUI_CRAFT1.y},RD_GUI(2.5f),"craft-station");
 		drawString((VEC2){GUI_CRAFT2.x-0.03f,GUI_CRAFT2.y},RD_GUI(2.5f),"torch");
-		drawString((VEC2){GUI_CRAFT3.x-0.03f,GUI_CRAFT3.y},RD_GUI(2.5f),"pickaxe");
-		drawString((VEC2){GUI_CRAFT4.x-0.03f,GUI_CRAFT4.y},RD_GUI(2.5f),"melee");
 		cursorDraw(cursor);
 		break;
 	case MENU_SETTING:
